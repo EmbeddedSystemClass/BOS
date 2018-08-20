@@ -1,11 +1,11 @@
 /*
     BitzOS (BOS) V0.1.4 - Copyright (C) 2017 Hexabitz
     All rights reserved
-		
+
     File Name     : BOS.h
     Description   : Header file for Bitz Operating System (BOS).
 */
-	
+
 /* Define to prevent recursive inclusion -------------------------------------*/
 #ifndef BOS_H
 #define BOS_H
@@ -34,7 +34,7 @@ enum traceOptions_e{TRACE_NONE, TRACE_MESSAGE, TRACE_RESPONSE, TRACE_BOTH};
 enum rtc_ampm_e{RTC_AM = 1, RTC_PM};
 enum rtc_daylight_e{DAYLIGHT_SUB1H = -1, DAYLIGHT_NONE = 0, DAYLIGHT_ADD1H = 1};
 enum rtc_months_e{JANUARY = 1, FEBRUARY, MARCH, APRIL, MAY, JUNE, JULY, AUGUST, SEPTEMBER, OCTOBER, NOVEMBER, DECEMBER};
-enum rtc_weekdays_e{MONDAY = 1, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY};  
+enum rtc_weekdays_e{MONDAY = 1, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY};
 /* Type definitions */
 typedef enum { FMT_UINT8 = 1, FMT_INT8, FMT_UINT16, FMT_INT16, FMT_UINT32, FMT_INT32, FMT_FLOAT, FMT_BOOL } varFormat_t;
 
@@ -42,10 +42,10 @@ typedef enum { FMT_UINT8 = 1, FMT_INT8, FMT_UINT16, FMT_INT16, FMT_UINT32, FMT_I
 /* Includes ------------------------------------------------------------------*/
 
 /* STM HAL */
-#include "stm32f0xx_hal.h" 
-										 
+#include "stm32f0xx_hal.h"
+
 /* Project Header File */
-#include "project.h" 
+#include "project.h"
 
 /* RTOS */
 #include "cmsis_os.h"
@@ -53,7 +53,7 @@ typedef enum { FMT_UINT8 = 1, FMT_INT8, FMT_UINT16, FMT_INT16, FMT_UINT32, FMT_I
 #include "task.h"
 #include "queue.h"
 #include "semphr.h"
-#include "FreeRTOS_CLI.h"	 
+#include "FreeRTOS_CLI.h"
 
 /* BOS */
 #include "BOS_eeprom.h"
@@ -65,8 +65,8 @@ typedef enum { FMT_UINT8 = 1, FMT_INT8, FMT_UINT16, FMT_INT16, FMT_UINT32, FMT_I
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
-#include <math.h>	 
-#include <limits.h>	
+#include <math.h>
+#include <limits.h>
 
 /* Module includes and initialization */
 #ifdef H01R0
@@ -76,47 +76,47 @@ typedef enum { FMT_UINT8 = 1, FMT_INT8, FMT_UINT16, FMT_INT16, FMT_UINT32, FMT_I
 	#include "P01R0.h"
 #endif
 #ifdef H23R0
-	#include "H23R0.h"	
+	#include "H23R0.h"
 #endif
 #ifdef H23R1
-	#include "H23R0.h"	
+	#include "H23R0.h"
 #endif
 #ifdef H07R3
-	#include "H07R3.h"	
+	#include "H07R3.h"
 #endif
 #ifdef H08R6
-	#include "H08R6.h"	
+	#include "H08R6.h"
 #endif
 #ifdef H1BR6
-	#include "H1BR6.h"	
+	#include "H1BR6.h"
 #endif
 #ifdef H12R0
-	#include "H12R0.h"	
+	#include "H12R0.h"
 #endif
 #ifdef H13R7
 	#include "H13R7.h"
 #endif
 #ifdef H0FR6
-	#include "H0FR6.h"		
+	#include "H0FR6.h"
 #endif
 #ifdef H1AR2
-	#include "H1AR0.h"	
+	#include "H1AR0.h"
 #endif
 #ifdef H0AR9
-	#include "H0AR9.h"	
+	#include "H0AR9.h"
 #endif
 #ifdef H1DR5
-	#include "H1DR5.h"	
+	#include "H1DR5.h"
 #endif
 #ifdef H0BR4
-	#include "H0BR4.h"	
+	#include "H0BR4.h"
 #endif
 #ifdef H18R0
-	#include "H18R0.h"	
+	#include "H18R0.h"
 #endif
 
-/* BOS_Status Type Definition */  
-typedef enum 
+/* BOS_Status Type Definition */
+typedef enum
 {
   BOS_OK = 0,
 	BOS_ERR_UnknownMessage = 1,
@@ -151,17 +151,17 @@ typedef enum
 	BOS_ERROR = 255
 } BOS_Status;
 
-/* Button Configuration Struct Type Definition */  
+/* Button Configuration Struct Type Definition */
 typedef struct
 {
 	uint16_t debounce;
 	uint16_t singleClickTime;
 	uint8_t minInterClickTime;
 	uint8_t maxInterClickTime;
-} 
+}
 buttonsConfig_t;
 
-/* Time/Date Struct Type Definition */  
+/* Time/Date Struct Type Definition */
 typedef struct
 {
 	uint16_t msec;
@@ -169,18 +169,18 @@ typedef struct
 	uint8_t minutes;
 	uint8_t hours;
 	uint8_t ampm;
-} 
-time_t;
+}
+bos_time_t;
 typedef struct
 {
 	uint8_t weekday;
 	uint8_t day;
 	uint8_t month;
 	uint16_t year;
-} 
-date_t;
+}
+bos_date_t;
 
-/* BOS Struct Type Definition */  
+/* BOS Struct Type Definition */
 typedef struct
 {
 	buttonsConfig_t buttons;
@@ -189,12 +189,12 @@ typedef struct
 	uint32_t clibaudrate;
 	uint8_t daylightsaving;
 	uint8_t hourformat;
-	time_t time;						// Not saved with BOS parameters
-	date_t date;						// Not saved with BOS parameters
-} 
+	bos_time_t time;						// Not saved with BOS parameters
+	bos_date_t date;						// Not saved with BOS parameters
+}
 BOS_t;
 
-/* Button Struct Type Definition */  
+/* Button Struct Type Definition */
 typedef struct
 {
 	uint8_t state;
@@ -206,11 +206,11 @@ typedef struct
 	uint8_t releasedY2Sec;
 	uint8_t releasedY3Sec;
 	uint8_t events;
-} 
+}
 button_t;
 
 
-/* Button Events Definition */ 
+/* Button Events Definition */
 #define	BUTTON_EVENT_CLICKED									0x01
 #define	BUTTON_EVENT_DBL_CLICKED							0x02
 #define	BUTTON_EVENT_PRESSED_FOR_X1_SEC				0x04
@@ -222,7 +222,7 @@ button_t;
 
 
 
-/* BOS Parameters and constants */ 
+/* BOS Parameters and constants */
 #define P_LAST 												NumOfPorts
 #define MAX_MESSAGE_SIZE							50
 #define cmdMAX_INPUT_SIZE							50
@@ -285,17 +285,17 @@ static char pcUserMessage[80];
 extern const char * pcParamsHelpString[];
 extern BOS_Status responseStatus;
 extern char groupAlias[MaxNumOfGroups][MaxLengthOfAlias+1];
-#ifndef _N
+#ifndef __N__
 	extern char moduleAlias[MaxNumOfModules+1][MaxLengthOfAlias+1];
 	extern uint8_t broadcastResponse[MaxNumOfModules];
 	extern uint16_t groupModules[MaxNumOfModules];
 #else
-	extern char moduleAlias[_N+1][MaxLengthOfAlias+1];
-	extern uint8_t broadcastResponse[_N];
-	extern uint16_t groupModules[_N];
+	extern char moduleAlias[__N__+1][MaxLengthOfAlias+1];
+	extern uint8_t broadcastResponse[__N__];
+	extern uint16_t groupModules[__N__];
 #endif
-extern uint8_t routeDist[]; 
-extern uint8_t routePrev[]; 
+extern uint8_t routeDist[];
+extern uint8_t routePrev[];
 extern uint8_t route[];
 extern button_t button[NumOfPorts+1];
 extern bool delayButtonStateReset, needToDelayButtonStateReset;
@@ -316,7 +316,7 @@ extern void SystemClock_Config(void);
 
 /* -----------------------------------------------------------------------
 	|														Message Codes	 														 	|
-   ----------------------------------------------------------------------- 
+   -----------------------------------------------------------------------
 */
 #define	CODE_unknown_message							0
 #define	CODE_ping													1
@@ -351,13 +351,13 @@ extern void SystemClock_Config(void);
 
 /* -----------------------------------------------------------------------
 	|																APIs	 																 	|
-   ----------------------------------------------------------------------- 
+   -----------------------------------------------------------------------
 */
 
 /* Indicator LED */
-#define IND_toggle()		HAL_GPIO_TogglePin(_IND_LED_PORT,_IND_LED_PIN)		
-#define IND_ON()				HAL_GPIO_WritePin(_IND_LED_PORT,_IND_LED_PIN,GPIO_PIN_SET)		
-#define IND_OFF()				HAL_GPIO_WritePin(_IND_LED_PORT,_IND_LED_PIN,GPIO_PIN_RESET)		
+#define IND_toggle()		HAL_GPIO_TogglePin(_IND_LED_PORT,_IND_LED_PIN)
+#define IND_ON()				HAL_GPIO_WritePin(_IND_LED_PORT,_IND_LED_PIN,GPIO_PIN_SET)
+#define IND_OFF()				HAL_GPIO_WritePin(_IND_LED_PORT,_IND_LED_PIN,GPIO_PIN_RESET)
 #define IND_blink(t)				IND_ON();	HAL_Delay(t); IND_OFF()		/* Use after starting the scheduler */
 #define RTOS_IND_blink(t)		IND_ON();	osDelay(t); IND_OFF()			/* Use after starting the scheduler */
 

@@ -4,20 +4,20 @@
 
     File Name     : BOS.c
     Description   : Source code for Bitz Operating System (BOS).
-		
-		Required MCU resources : 
-		
+
+		Required MCU resources :
+
 			>> Timer 14 for micro-sec delay.
 
 */
-	
+
 /* Includes ------------------------------------------------------------------*/
 #include "BOS.h"
 
 /* Private variables ---------------------------------------------------------*/
 
-BOS_t BOS; 
-BOS_t BOS_default = { .clibaudrate = DEF_CLI_BAUDRATE, .response = BOS_RESPONSE_ALL, .trace = 1, .buttons.debounce = DEF_BUTTON_DEBOUNCE, .buttons.singleClickTime = DEF_BUTTON_CLICK, 
+BOS_t BOS;
+BOS_t BOS_default = { .clibaudrate = DEF_CLI_BAUDRATE, .response = BOS_RESPONSE_ALL, .trace = 1, .buttons.debounce = DEF_BUTTON_DEBOUNCE, .buttons.singleClickTime = DEF_BUTTON_CLICK,
 											.buttons.minInterClickTime = DEF_BUTTON_MIN_INTER_CLICK, .buttons.maxInterClickTime = DEF_BUTTON_MAX_INTER_CLICK, .daylightsaving = DAYLIGHT_NONE, .hourformat = 24 };
 uint16_t myPN = modulePN;
 TIM_HandleTypeDef htim14;	/* micro-second delay counter */
@@ -31,13 +31,13 @@ static const char BOSkeywords[NumOfKeywords][4] = {"me", "all", "if", "for"};
 
 static const char *monthStringAbreviated[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 static const char *weekdayString[] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
-	
+
 /* Number of modules in the array */
-#ifndef _N
+#ifndef __N__
 	uint8_t N = 1;
 	uint8_t myID = 0;
 #else
-	uint8_t N = _N;
+	uint8_t N = __N__;
 	uint8_t myID = _module;
 #endif
 
@@ -47,34 +47,34 @@ uint16_t neighbors[NumOfPorts][2] = {0};
 uint16_t neighbors2[MaxNumOfPorts][2] = {0};
 uint16_t bcastRoutes[MaxNumOfModules] = {0};				/* P1 is LSB */
 char groupAlias[MaxNumOfGroups][MaxLengthOfAlias+1] = {0};
-#ifndef _N
+#ifndef __N__
 	uint16_t array[MaxNumOfModules][MaxNumOfPorts+1] = {{0}};			/* Array topology */
 	uint16_t arrayPortsDir[MaxNumOfModules]= {0};									/* Array ports directions */
-	uint8_t routeDist[MaxNumOfModules] = {0}; 
-	uint8_t routePrev[MaxNumOfModules] = {0}; 
+	uint8_t routeDist[MaxNumOfModules] = {0};
+	uint8_t routePrev[MaxNumOfModules] = {0};
 	uint8_t route[MaxNumOfModules] = {0};
 	char moduleAlias[MaxNumOfModules+1][MaxLengthOfAlias+1] = {0};		/* moduleAlias[0] used to store alias for module 0 */
 	uint8_t broadcastResponse[MaxNumOfModules] = {0};
 	uint16_t groupModules[MaxNumOfModules] = {0};			/* Group 0 (LSB) to Group 15 (MSB) */
 #else
-	uint16_t arrayPortsDir[_N]= {0};
-	uint8_t routeDist[_N] = {0}; 
-	uint8_t routePrev[_N] = {0}; 
-	uint8_t route[_N] = {0};
-	char moduleAlias[_N+1][MaxLengthOfAlias+1] = {0};
-	uint8_t broadcastResponse[_N] = {0};
-	uint16_t groupModules[_N] = {0};									/* Group 0 (LSB) to Group 15 (MSB) */
+	uint16_t arrayPortsDir[__N__]= {0};
+	uint8_t routeDist[__N__] = {0};
+	uint8_t routePrev[__N__] = {0};
+	uint8_t route[__N__] = {0};
+	char moduleAlias[__N__+1][MaxLengthOfAlias+1] = {0};
+	uint8_t broadcastResponse[__N__] = {0};
+	uint16_t groupModules[__N__] = {0};									/* Group 0 (LSB) to Group 15 (MSB) */
 #endif
 
 /* Dimension the buffer into which the input messages are placed. */
 uint8_t cMessage[NumOfPorts][MAX_MESSAGE_SIZE] = {0};
 uint8_t messageLength[NumOfPorts] = {0};
 uint8_t messageParams[20*(MAX_MESSAGE_SIZE-5)] = {0};
-char cRxedChar = 0; 
+char cRxedChar = 0;
 uint8_t longMessage = 0; uint16_t longMessageLastPtr = 0;
 static uint8_t longMessageScratchpad[(MaxNumOfPorts+1)*MaxNumOfModules] = {0};
 static char pcUserMessage[80];
-BOS_Status responseStatus = BOS_OK; 
+BOS_Status responseStatus = BOS_OK;
 uint8_t bcastID = 0;			// Counter for unique broadcast ID
 uint8_t PcPort = 0;
 uint8_t BOS_initialized = 0;
@@ -118,7 +118,7 @@ typedef struct xCOMMAND_INPUT_LIST
 {
 	const CLI_Command_Definition_t *pxCommandLineDefinition;
 	struct xCOMMAND_INPUT_LIST *pxNext;
-} 
+}
 CLI_Definition_List_Item_t;
 extern CLI_Definition_List_Item_t xRegisteredCommands;
 
@@ -129,15 +129,15 @@ extern FLASH_ProcessTypeDef pFlash;
 RTC_HandleTypeDef RtcHandle;
 uint8_t bootStatus = POWER_ON_BOOT;
 
-/* Private function prototypes -----------------------------------------------*/	
+/* Private function prototypes -----------------------------------------------*/
 
 uint8_t minArr(uint8_t* arr, uint8_t* Q);
 uint8_t QnotEmpty(uint8_t* Q);
 void NotifyMessagingTaskFromISR(uint8_t port);
 void NotifyMessagingTask(uint8_t port);
-//BOS_Status SaveEEtopology(void);								
+//BOS_Status SaveEEtopology(void);
 //BOS_Status LoadEEtopology(void);
-#ifndef _N
+#ifndef __N__
 uint8_t SaveROtopology(void);
 uint8_t ClearROtopology(void);
 #endif
@@ -172,7 +172,7 @@ BOS_Status BroadcastReceivedMessage(uint8_t dstType, uint8_t IncomingPort);
 BOS_Status WriteToRemote(uint8_t module, uint32_t localAddress, uint32_t remoteAddress, varFormat_t format, uint32_t timeout, uint8_t force);
 BOS_Status RTC_Init(void);
 BOS_Status RTC_CalendarConfig(void);
-	
+
 /* Module exported internal functions */
 extern void Module_Init(void);
 extern void RegisterModuleCLICommands(void);
@@ -193,7 +193,7 @@ static portBASE_TYPE prvTaskStatsCommand( int8_t *pcWriteBuffer, size_t xWriteBu
 static portBASE_TYPE prvRunTimeStatsCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString );
 static portBASE_TYPE pingCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString );
 static portBASE_TYPE bootloaderUpdateCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString );
-#ifndef _N
+#ifndef __N__
 static portBASE_TYPE exploreCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString );
 #endif
 static portBASE_TYPE resetCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString );
@@ -210,7 +210,7 @@ static portBASE_TYPE defaultCommand( int8_t *pcWriteBuffer, size_t xWriteBufferL
 static portBASE_TYPE timeCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString );
 static portBASE_TYPE dateCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString );
 
-/* CLI command structure : run-time-stats 
+/* CLI command structure : run-time-stats
 This generates a table that shows how much run time each task has */
 static const CLI_Command_Definition_t prvRunTimeStatsCommandDefinition =
 {
@@ -220,7 +220,7 @@ static const CLI_Command_Definition_t prvRunTimeStatsCommandDefinition =
 	0 /* No parameters are expected. */
 };
 /*-----------------------------------------------------------*/
-/* CLI command structure : task-stats" 
+/* CLI command structure : task-stats"
 This generates a table that gives information on each task in the system. */
 static const CLI_Command_Definition_t prvTaskStatsCommandDefinition =
 {
@@ -249,7 +249,7 @@ static const CLI_Command_Definition_t bootloaderUpdateCommandDefinition =
 };
 /*-----------------------------------------------------------*/
 /* CLI command structure : explore */
-#ifndef _N
+#ifndef __N__
 static const CLI_Command_Definition_t exploreCommandDefinition =
 {
 	( const int8_t * ) "explore", /* The command string to type. */
@@ -382,16 +382,16 @@ static const CLI_Command_Definition_t dateCommandDefinition =
 
 static char * pcBootloaderUpdateMessage = 	\
 "\n\rThis module will be forced into bootloader mode.\n\rPlease use the \"STM Flash Loader Demonstrator\" \
-utility to update the firmware.\n\r\n\t*** Important ***\n\rIf this module is connected directly to PC please close this port first.\n\r";	
+utility to update the firmware.\n\r\n\t*** Important ***\n\rIf this module is connected directly to PC please close this port first.\n\r";
 
 
 /* -----------------------------------------------------------------------
 	|												 Private Functions	 														|
-   ----------------------------------------------------------------------- 
+   -----------------------------------------------------------------------
 */
 
 
-/* PxMessagingTask function 
+/* PxMessagingTask function
 */
 void PxMessagingTask(void * argument)
 {
@@ -401,31 +401,31 @@ void PxMessagingTask(void * argument)
 	static int8_t cCLIString[ cmdMAX_INPUT_SIZE ];
 	portBASE_TYPE xReturned; int8_t *pcOutputString;
 	static uint8_t bcastLastID;
-	
+
 	port = (int8_t)(unsigned) argument;
-	
+
 	 /* Infinite loop */
 	for( ;; )
 	{
-		
+
 		/* Wait forever until a message is received on one of the ports */
 		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-			
+
 		if (messageLength[port-1])
-		{						
+		{
 			/* Read message source and destination */
-			dst = cMessage[port-1][0]; 
-			src = cMessage[port-1][1];	
-			
+			dst = cMessage[port-1][0];
+			src = cMessage[port-1][1];
+
 			/* Read message code (remove response and trace options and kepp long message bit (MSB)) */
-			code = ( ( (uint16_t) cMessage[port-1][2] << 8 ) + cMessage[port-1][3] ) & 0x8FFF;	
-			
+			code = ( ( (uint16_t) cMessage[port-1][2] << 8 ) + cMessage[port-1][3] ) & 0x8FFF;
+
 			/* Read response and trace modes */
 			responseMode = cMessage[port-1][2] & 0x60;
 			traceMode = cMessage[port-1][2] & 0x10;
 			oldTraceMode = BOS.trace;
 			BOS.trace = traceMode;
-			
+
 			/* Is it a long message? Check MSB */
 			if (code>>15) {
 				longMessage = 1;
@@ -433,41 +433,41 @@ void PxMessagingTask(void * argument)
 			} else {
 				longMessage = 0;
 			}
-	
+
 			/* Check the end of message char 0x75 */
 			if (cMessage[port-1][messageLength[port-1]-1] == 0x75)
 			{
 				/* Is it a transit message? Check for the case when module is being IDed */
-				if ( ( dst && (dst < BOS_MULTICAST) && (dst != myID) && (myID != 1) ) || 
+				if ( ( dst && (dst < BOS_MULTICAST) && (dst != myID) && (myID != 1) ) ||
 						 ( dst && (dst < BOS_MULTICAST) && (dst != myID) && (myID == 1) && (code != CODE_module_id) ) )
 				{
-					/* Forward the message to its destination */		
+					/* Forward the message to its destination */
 					ForwardReceivedMessage(port);
 					if (traceMode)
 						indMode = IND_SHORT_BLINK;
 				}
 				/* Either broadcast or multicast local message */
-				else 
-				{				
+				else
+				{
 					/* Is it a broadcast message with unique ID? */
-					if (dst == BOS_BROADCAST && cMessage[port-1][messageLength[port-1]-2] != bcastLastID) 
+					if (dst == BOS_BROADCAST && cMessage[port-1][messageLength[port-1]-2] != bcastLastID)
 					{
-						bcastID = bcastLastID = cMessage[port-1][messageLength[port-1]-2];			// Store bcastID 		
+						bcastID = bcastLastID = cMessage[port-1][messageLength[port-1]-2];			// Store bcastID
 						BroadcastReceivedMessage(BOS_BROADCAST, port);
-						cMessage[port-1][messageLength[port-1]-2] = 0;								// Reset bcastID location 
-					} 
+						cMessage[port-1][messageLength[port-1]-2] = 0;								// Reset bcastID location
+					}
 					/* Reflection of last broadcast message! */
-					else if (dst == BOS_BROADCAST && cMessage[port-1][messageLength[port-1]-2] == bcastLastID) 
+					else if (dst == BOS_BROADCAST && cMessage[port-1][messageLength[port-1]-2] == bcastLastID)
 					{
 						result = BOS_ERR_MSG_Reflection;
 					}
-									
+
 					/* Is it a multicast message with unique ID? */
-					if (dst == BOS_MULTICAST && cMessage[port-1][messageLength[port-1]-2] != bcastLastID) 
+					if (dst == BOS_MULTICAST && cMessage[port-1][messageLength[port-1]-2] != bcastLastID)
 					{
-						bcastID = bcastLastID = cMessage[port-1][messageLength[port-1]-2];			// Store bcastID 		
+						bcastID = bcastLastID = cMessage[port-1][messageLength[port-1]-2];			// Store bcastID
 						BroadcastReceivedMessage(BOS_MULTICAST, port);
-						cMessage[port-1][messageLength[port-1]-2] = 0;								// Reset bcastID location 
+						cMessage[port-1][messageLength[port-1]-2] = 0;								// Reset bcastID location
 						temp = cMessage[port-1][messageLength[port-1]-3];							// Number of members in this multicast group - TODO breaks when message is 14 length and padded
 						/* Am I part of this multicast group? */
 						result = BOS_ERR_WrongID;
@@ -478,25 +478,25 @@ void PxMessagingTask(void * argument)
 								break;
 							}
             }
-					} 
+					}
 					/* Reflection of last broadcast message! */
-					else if (dst == BOS_MULTICAST && cMessage[port-1][messageLength[port-1]-2] == bcastLastID) 
+					else if (dst == BOS_MULTICAST && cMessage[port-1][messageLength[port-1]-2] == bcastLastID)
 					{
 						result = BOS_ERR_MSG_Reflection;
 					}
-					
+
 					/* Process BOS Messages */
 					if (result == BOS_OK)
 					{
 						switch (code)
 						{
-							case CODE_unknown_message :					
+							case CODE_unknown_message :
 								break;
-							
+
 							case CODE_ping :
 								indMode = IND_PING;	osDelay(10);
 								if (responseMode == BOS_RESPONSE_ALL || responseMode == BOS_RESPONSE_MSG)
-									SendMessageToModule(src, CODE_ping_response, 0);	
+									SendMessageToModule(src, CODE_ping_response, 0);
 								break;
 
 							case CODE_ping_response :
@@ -505,57 +505,57 @@ void PxMessagingTask(void * argument)
 								else
 									sprintf( ( char * ) pcUserMessage, "Hi from module %d (%s)\r\n", src, moduleAlias[src]);
 								writePxMutex(PcPort, pcUserMessage, strlen(pcUserMessage), cmd50ms, HAL_MAX_DELAY);
-								responseStatus = BOS_OK;								
+								responseStatus = BOS_OK;
 								break;
-								
+
 							case CODE_IND_on :
 								IND_ON();
 								break;
-							
+
 							case CODE_IND_off :
 								IND_OFF();
 								break;
-							
+
 							case CODE_IND_toggle :
 								IND_toggle();
 								break;
-							
-							case CODE_hi :					
+
+							case CODE_hi :
 								/* Record your neighbor info */
 								neighbors[port-1][0] = ( (uint16_t) src << 8 ) + cMessage[port-1][6];			/* Neighbor ID + Neighbor own port */
 								neighbors[port-1][1] = ( (uint16_t) cMessage[port-1][4] << 8 ) + cMessage[port-1][5];		/* Neighbor PN */
 								/* Send your own info */
 								messageParams[1] = (uint8_t) myPN;
-								messageParams[0] = (uint8_t) (myPN >> 8);	
+								messageParams[0] = (uint8_t) (myPN >> 8);
 								messageParams[2] = port;
 								osDelay(2);
 								/* Port, Source = 0 (myID), Destination = 0 (adjacent neighbor), message code, number of parameters */
 								SendMessageFromPort(port, 0, 0, CODE_hi_response, 3);
 								break;
-							
+
 							case CODE_hi_response :
 								/* Record your neighbor info */
 								neighbors[port-1][0] = ( (uint16_t) src << 8 ) + cMessage[port-1][6];		/* Neighbor ID + Neighbor own port */
-								neighbors[port-1][1] = ( (uint16_t) cMessage[port-1][4] << 8 ) + cMessage[port-1][5];		/* Neighbor PN */	
+								neighbors[port-1][1] = ( (uint16_t) cMessage[port-1][4] << 8 ) + cMessage[port-1][5];		/* Neighbor PN */
 								responseStatus = BOS_OK;
 								break;
-						#ifndef _N
+						#ifndef __N__
 							case CODE_explore_adj :
 								ExploreNeighbors(port);	indMode = IND_TOPOLOGY;
 								osDelay(10); temp = 0;
 								/* Exploration response message */
-								for (uint8_t p=1 ; p<=NumOfPorts ; p++)  
+								for (uint8_t p=1 ; p<=NumOfPorts ; p++)
 								{
 									if (neighbors[p-1][0])
 									{
 										messageParams[temp] = p;
 										memcpy(messageParams+temp+1, neighbors[p-1], (size_t)(4));
-										temp += 5;		
+										temp += 5;
 									}
 								}
 								SendMessageToModule(src, CODE_explore_adj_response, temp);
 								break;
-							
+
 							case CODE_explore_adj_response :
 								/* Extract the other module neighbors */
 								temp = (messageLength[port-1]-5)/5;
@@ -564,16 +564,16 @@ void PxMessagingTask(void * argument)
 								}
 								responseStatus = BOS_OK;
 								break;
-						#endif						
+						#endif
 							case CODE_port_dir :
 								/* Reverse/un-reverse ports according to command parameters */
 								for (uint8_t p=1 ; p<=NumOfPorts ; p++) {
-									if (p != port)	SwapUartPins(GetUart(p), cMessage[port-1][3+p]); 
+									if (p != port)	SwapUartPins(GetUart(p), cMessage[port-1][3+p]);
 								}
 								/* Check the input port direction */
 								SwapUartPins(GetUart(port), cMessage[port-1][4+MaxNumOfPorts]);
 								break;
-								
+
 							case CODE_module_id :
 								if (cMessage[port-1][4] == 0)						/* Change my own ID */
 									myID = cMessage[port-1][5];
@@ -583,7 +583,7 @@ void PxMessagingTask(void * argument)
 									SendMessageFromPort(cMessage[port-1][6], 0, 0, CODE_module_id, 3);
 								}
 								break;
-								
+
 							case CODE_topology :
 								if (longMessage) {
 									/* array is 2-byte oriented thus memcpy can copy only even number of bytes */
@@ -600,46 +600,46 @@ void PxMessagingTask(void * argument)
 									//indMode = IND_TOPOLOGY;
 								}
 								break;
-								
+
 							case CODE_read_port_dir :
 								temp = 0;
 								/* Check my own ports */
 								for (uint8_t p=1 ; p<=NumOfPorts ; p++) {
 									if (GetUart(p)->AdvancedInit.Swap == UART_ADVFEATURE_SWAP_ENABLE) {
 										messageParams[temp++] = p;
-									}									
+									}
 								}
 								/* Send response */
 								SendMessageToModule(src, CODE_read_port_dir_response, temp);
 								break;
-							
+
 							case CODE_read_port_dir_response :
 								/* Read module ports directions */
-								for (uint8_t p=0 ; p<(messageLength[port-1]-5) ; p++) 
+								for (uint8_t p=0 ; p<(messageLength[port-1]-5) ; p++)
 								{
-									arrayPortsDir[src-1] |= (0x8000>>((cMessage[port-1][4+p])-1));								
+									arrayPortsDir[src-1] |= (0x8000>>((cMessage[port-1][4+p])-1));
 								}
 								responseStatus = BOS_OK;
-								break;		
+								break;
 
 							case CODE_exp_eeprom :
-							#ifndef _N
+							#ifndef __N__
 								SaveROtopology();
 							#endif
 								SaveEEportsDir();
 								indMode = IND_PING;
 								break;
-							
-							case CODE_def_array :					
+
+							case CODE_def_array :
 								/* Clear the topology */
 								ClearEEportsDir();
-								#ifndef _N
+								#ifndef __N__
 								ClearROtopology();
 								#endif
 								osDelay(100);
 								indMode = IND_TOPOLOGY;
 								break;
-							
+
 							case CODE_CLI_command :
 								/* Obtain the address of the output buffer */
 								pcOutputString = FreeRTOS_CLIGetOutputBuffer();
@@ -650,24 +650,24 @@ void PxMessagingTask(void * argument)
 									memcpy(cCLIString, &cMessage[port-1][4], (size_t) (messageLength[port-1]-5-temp-2));		// remove bcastID + groupm members + group count
 								else
 									memcpy(cCLIString, &cMessage[port-1][4], (size_t) (messageLength[port-1]-5));
-								do 
+								do
 								{
 									/* Process the command locally */
-									xReturned = FreeRTOS_CLIProcessCommand( cCLIString, pcOutputString, configCOMMAND_INT_MAX_OUTPUT_SIZE );	
+									xReturned = FreeRTOS_CLIProcessCommand( cCLIString, pcOutputString, configCOMMAND_INT_MAX_OUTPUT_SIZE );
 									if (responseMode == BOS_RESPONSE_ALL)
 									{
 										/* Copy the generated string to messageParams */
 										memcpy(messageParams, pcOutputString, strlen((char*) pcOutputString));
-										/* Send command response */	
+										/* Send command response */
 										SendMessageToModule(src, CODE_CLI_response, strlen((char*) pcOutputString));
-										osDelay(10); 
+										osDelay(10);
 									}
-								} 
-								while( xReturned != pdFALSE );								
+								}
+								while( xReturned != pdFALSE );
 								/* Reset the buffer */
 								memset( cCLIString, 0x00, cmdMAX_INPUT_SIZE );
 								break;
-								
+
 							case CODE_CLI_response :
 								/* Obtain the address of the output buffer. */
 								pcOutputString = FreeRTOS_CLIGetOutputBuffer();
@@ -680,19 +680,19 @@ void PxMessagingTask(void * argument)
 									longMessageLastPtr = 0;
 									responseStatus = BOS_OK;
 									/* Wake up the UARTCmd task again */
-								}							
+								}
 								break;
-								
+
 							case CODE_DMA_channel :
 								/* Read EEPROM storage flag */
 								temp = cMessage[port-1][15];
-								if (messageLength[port-1] == 19)	temp = cMessage[port-1][17];							
+								if (messageLength[port-1] == 19)	temp = cMessage[port-1][17];
 								if (messageLength[port-1] == 21)	temp = cMessage[port-1][19];
 								/* Activate the stream */
 								if (temp == false)
 								{
 									count = ( (uint32_t) cMessage[port-1][4] << 24 ) + ( (uint32_t) cMessage[port-1][5] << 16 ) + ( (uint32_t) cMessage[port-1][6] << 8 ) + cMessage[port-1][7];
-									timeout = ( (uint32_t) cMessage[port-1][8] << 24 ) + ( (uint32_t) cMessage[port-1][9] << 16 ) + ( (uint32_t) cMessage[port-1][10] << 8 ) + cMessage[port-1][11];									
+									timeout = ( (uint32_t) cMessage[port-1][8] << 24 ) + ( (uint32_t) cMessage[port-1][9] << 16 ) + ( (uint32_t) cMessage[port-1][10] << 8 ) + cMessage[port-1][11];
 									SetupDMAStreamsFromMessage(cMessage[port-1][12], count, timeout, cMessage[port-1][13], cMessage[port-1][14], 0, 0, 0, 0);
 									if (messageLength[port-1] == 19)
 										SetupDMAStreamsFromMessage(cMessage[port-1][12], count, timeout, cMessage[port-1][13], cMessage[port-1][14], cMessage[port-1][15], cMessage[port-1][16], 0, 0);
@@ -716,20 +716,20 @@ void PxMessagingTask(void * argument)
 									NVIC_SystemReset();
 								}
 								break;
-							
+
 							case CODE_DMA_scast_stream :
 								count = ( (uint32_t) cMessage[port-1][4] << 24 ) + ( (uint32_t) cMessage[port-1][5] << 16 ) + ( (uint32_t) cMessage[port-1][6] << 8 ) + cMessage[port-1][7];
 								timeout = ( (uint32_t) cMessage[port-1][8] << 24 ) + ( (uint32_t) cMessage[port-1][9] << 16 ) + ( (uint32_t) cMessage[port-1][10] << 8 ) + cMessage[port-1][11];
 								StartScastDMAStream(cMessage[port-1][13], myID, cMessage[port-1][15], cMessage[port-1][14], cMessage[port-1][12], count, timeout, cMessage[port-1][16]);
-								break;								
-							
-							
-							case CODE_read_remote :								
+								break;
+
+
+							case CODE_read_remote :
 								if(cMessage[port-1][4])			// request for a BOS var
 								{
 									messageParams[0] = BOS_var_reg[cMessage[port-1][4]-1]&0x000F;					// send variable format (lower 4 bits)
 									if (messageParams[0] == 0) {																					// Variable does not exist
-										SendMessageToModule(src, CODE_read_remote_response, 1);							
+										SendMessageToModule(src, CODE_read_remote_response, 1);
 									} else {
 										// Variable exists. Get its memory address
 										temp32 = (BOS_var_reg[cMessage[port-1][4]-1]>>16) + SRAM_BASE;
@@ -737,76 +737,76 @@ void PxMessagingTask(void * argument)
 										switch (messageParams[0])											// requested format
 										{
 											case FMT_BOOL:
-											case FMT_UINT8: 
-												messageParams[1] = *(__IO uint8_t *)temp32; 
+											case FMT_UINT8:
+												messageParams[1] = *(__IO uint8_t *)temp32;
 												SendMessageToModule(src, CODE_read_remote_response, 2); break;
-											case FMT_INT8: 
-												messageParams[1] = *(__IO int8_t *)temp32; 
+											case FMT_INT8:
+												messageParams[1] = *(__IO int8_t *)temp32;
 												SendMessageToModule(src, CODE_read_remote_response, 2); break;
-											case FMT_UINT16: 
-												messageParams[1] = (uint8_t)((*(__IO uint16_t *)temp32)>>0); messageParams[2] = (uint8_t)((*(__IO uint16_t *)temp32)>>8); 
+											case FMT_UINT16:
+												messageParams[1] = (uint8_t)((*(__IO uint16_t *)temp32)>>0); messageParams[2] = (uint8_t)((*(__IO uint16_t *)temp32)>>8);
 												SendMessageToModule(src, CODE_read_remote_response, 3); break;
-											case FMT_INT16: 
-												messageParams[1] = (uint8_t)((*(__IO int16_t *)temp32)>>0); messageParams[2] = (uint8_t)((*(__IO int16_t *)temp32)>>8); 
+											case FMT_INT16:
+												messageParams[1] = (uint8_t)((*(__IO int16_t *)temp32)>>0); messageParams[2] = (uint8_t)((*(__IO int16_t *)temp32)>>8);
 												SendMessageToModule(src, CODE_read_remote_response, 3); break;
-											case FMT_UINT32: 
-												messageParams[1] = (uint8_t)((*(__IO uint32_t *)temp32)>>0); messageParams[2] = (uint8_t)((*(__IO uint32_t *)temp32)>>8); 
-												messageParams[3] = (uint8_t)((*(__IO uint32_t *)temp32)>>16); messageParams[4] = (uint8_t)((*(__IO uint32_t *)temp32)>>24); 
+											case FMT_UINT32:
+												messageParams[1] = (uint8_t)((*(__IO uint32_t *)temp32)>>0); messageParams[2] = (uint8_t)((*(__IO uint32_t *)temp32)>>8);
+												messageParams[3] = (uint8_t)((*(__IO uint32_t *)temp32)>>16); messageParams[4] = (uint8_t)((*(__IO uint32_t *)temp32)>>24);
 												SendMessageToModule(src, CODE_read_remote_response, 5); break;
-											case FMT_INT32: 
-												messageParams[1] = (uint8_t)((*(__IO int32_t *)temp32)>>0); messageParams[2] = (uint8_t)((*(__IO int32_t *)temp32)>>8); 
+											case FMT_INT32:
+												messageParams[1] = (uint8_t)((*(__IO int32_t *)temp32)>>0); messageParams[2] = (uint8_t)((*(__IO int32_t *)temp32)>>8);
 												messageParams[3] = (uint8_t)((*(__IO int32_t *)temp32)>>16); messageParams[4] = (uint8_t)((*(__IO int32_t *)temp32)>>24);
-												SendMessageToModule(src, CODE_read_remote_response, 5); break;										
+												SendMessageToModule(src, CODE_read_remote_response, 5); break;
 											case FMT_FLOAT:
-												messageParams[1] = *(__IO uint8_t *)(temp32+0); messageParams[2] = *(__IO uint8_t *)(temp32+1); messageParams[3] = *(__IO uint8_t *)(temp32+2); 
-												messageParams[4] = *(__IO uint8_t *)(temp32+3); messageParams[5] = *(__IO uint8_t *)(temp32+4); messageParams[6] = *(__IO uint8_t *)(temp32+5); 
-												messageParams[7] = *(__IO uint8_t *)(temp32+6); messageParams[8] = *(__IO uint8_t *)(temp32+7); 			// You cannot bitwise floats	
-												SendMessageToModule(src, CODE_read_remote_response, 9); break;			
+												messageParams[1] = *(__IO uint8_t *)(temp32+0); messageParams[2] = *(__IO uint8_t *)(temp32+1); messageParams[3] = *(__IO uint8_t *)(temp32+2);
+												messageParams[4] = *(__IO uint8_t *)(temp32+3); messageParams[5] = *(__IO uint8_t *)(temp32+4); messageParams[6] = *(__IO uint8_t *)(temp32+5);
+												messageParams[7] = *(__IO uint8_t *)(temp32+6); messageParams[8] = *(__IO uint8_t *)(temp32+7); 			// You cannot bitwise floats
+												SendMessageToModule(src, CODE_read_remote_response, 9); break;
 											default:
 												break;
-										}											
+										}
 									}
 								}
 								else												// request for a memory address
 								{
 									// Get requested address
-									temp32 = ( (uint32_t) cMessage[port-1][6] << 24 ) + ( (uint32_t) cMessage[port-1][7] << 16 ) + ( (uint32_t) cMessage[port-1][8] << 8 ) + cMessage[port-1][9];				
+									temp32 = ( (uint32_t) cMessage[port-1][6] << 24 ) + ( (uint32_t) cMessage[port-1][7] << 16 ) + ( (uint32_t) cMessage[port-1][8] << 8 ) + cMessage[port-1][9];
 									// Get variable according to requested format
 									switch (cMessage[port-1][5])											// requested format
                   {
 										case FMT_BOOL:
-                  	case FMT_UINT8: 
-											messageParams[0] = *(__IO uint8_t *)temp32; 
+                  	case FMT_UINT8:
+											messageParams[0] = *(__IO uint8_t *)temp32;
 											SendMessageToModule(src, CODE_read_remote_response, 1); break;
-                  	case FMT_INT8: 
-											messageParams[0] = *(__IO int8_t *)temp32; 
+                  	case FMT_INT8:
+											messageParams[0] = *(__IO int8_t *)temp32;
 											SendMessageToModule(src, CODE_read_remote_response, 1); break;
-                  	case FMT_UINT16: 
-											messageParams[0] = (uint8_t)((*(__IO uint16_t *)temp32)>>0); messageParams[1] = (uint8_t)((*(__IO uint16_t *)temp32)>>8);  
+                  	case FMT_UINT16:
+											messageParams[0] = (uint8_t)((*(__IO uint16_t *)temp32)>>0); messageParams[1] = (uint8_t)((*(__IO uint16_t *)temp32)>>8);
 											SendMessageToModule(src, CODE_read_remote_response, 2); break;
-                  	case FMT_INT16: 
-											messageParams[0] = (uint8_t)((*(__IO int16_t *)temp32)>>0); messageParams[1] = (uint8_t)((*(__IO int16_t *)temp32)>>8); 
+                  	case FMT_INT16:
+											messageParams[0] = (uint8_t)((*(__IO int16_t *)temp32)>>0); messageParams[1] = (uint8_t)((*(__IO int16_t *)temp32)>>8);
 											SendMessageToModule(src, CODE_read_remote_response, 2); break;
-                  	case FMT_UINT32: 
-											messageParams[0] = (uint8_t)((*(__IO uint32_t *)temp32)>>0); messageParams[1] = (uint8_t)((*(__IO uint32_t *)temp32)>>8); 
-											messageParams[2] = (uint8_t)((*(__IO uint32_t *)temp32)>>16); messageParams[3] = (uint8_t)((*(__IO uint32_t *)temp32)>>24); 
+                  	case FMT_UINT32:
+											messageParams[0] = (uint8_t)((*(__IO uint32_t *)temp32)>>0); messageParams[1] = (uint8_t)((*(__IO uint32_t *)temp32)>>8);
+											messageParams[2] = (uint8_t)((*(__IO uint32_t *)temp32)>>16); messageParams[3] = (uint8_t)((*(__IO uint32_t *)temp32)>>24);
 											SendMessageToModule(src, CODE_read_remote_response, 4); break;
-                  	case FMT_INT32: 
-											messageParams[0] = (uint8_t)((*(__IO int32_t *)temp32)>>0); messageParams[1] = (uint8_t)((*(__IO int32_t *)temp32)>>8); 
+                  	case FMT_INT32:
+											messageParams[0] = (uint8_t)((*(__IO int32_t *)temp32)>>0); messageParams[1] = (uint8_t)((*(__IO int32_t *)temp32)>>8);
 											messageParams[2] = (uint8_t)((*(__IO int32_t *)temp32)>>16); messageParams[3] = (uint8_t)((*(__IO int32_t *)temp32)>>24);
-											SendMessageToModule(src, CODE_read_remote_response, 4); break;										
+											SendMessageToModule(src, CODE_read_remote_response, 4); break;
                   	case FMT_FLOAT:
-											messageParams[0] = *(__IO uint8_t *)(temp32+0); messageParams[1] = *(__IO uint8_t *)(temp32+1); messageParams[2] = *(__IO uint8_t *)(temp32+2); 
-											messageParams[3] = *(__IO uint8_t *)(temp32+3); messageParams[4] = *(__IO uint8_t *)(temp32+4); messageParams[5] = *(__IO uint8_t *)(temp32+5); 
-											messageParams[6] = *(__IO uint8_t *)(temp32+6); messageParams[7] = *(__IO uint8_t *)(temp32+7); 			// You cannot bitwise floats	
+											messageParams[0] = *(__IO uint8_t *)(temp32+0); messageParams[1] = *(__IO uint8_t *)(temp32+1); messageParams[2] = *(__IO uint8_t *)(temp32+2);
+											messageParams[3] = *(__IO uint8_t *)(temp32+3); messageParams[4] = *(__IO uint8_t *)(temp32+4); messageParams[5] = *(__IO uint8_t *)(temp32+5);
+											messageParams[6] = *(__IO uint8_t *)(temp32+6); messageParams[7] = *(__IO uint8_t *)(temp32+7); 			// You cannot bitwise floats
 											SendMessageToModule(src, CODE_read_remote_response, 8); break;
                   	default:
                   		break;
-                  }	
+                  }
 								}
-								break;			
+								break;
 
-								
+
 							case CODE_read_remote_response :
 								if (remoteBuffer == 0)				// We requested a BOS variable
 								{
@@ -817,24 +817,24 @@ void PxMessagingTask(void * argument)
                   	case 0:																					// This variable does not exist
 											responseStatus = BOS_ERR_REMOTE_READ_NO_VAR; break;
 										case FMT_BOOL:
-										case FMT_UINT8: 
+										case FMT_UINT8:
 											remoteBuffer = cMessage[port-1][5]; break;
 										case FMT_INT8:
 											remoteBuffer = (int8_t)cMessage[port-1][5]; break;
-                  	case FMT_UINT16: 
+                  	case FMT_UINT16:
 											remoteBuffer = ((uint16_t)cMessage[port-1][5]<<0) + ((uint16_t)cMessage[port-1][6]<<8); break;
-                  	case FMT_INT16: 
+                  	case FMT_INT16:
 											remoteBuffer = ((int16_t)cMessage[port-1][5]<<0) + ((int16_t)cMessage[port-1][6]<<8); break;
-                  	case FMT_UINT32: 
+                  	case FMT_UINT32:
 											remoteBuffer = ((uint32_t)cMessage[port-1][5]<<0) + ((uint32_t)cMessage[port-1][6]<<8) + ((uint32_t)cMessage[port-1][7]<<16) + ((uint32_t)cMessage[port-1][8]<<24); break;
 										case FMT_INT32:
-											remoteBuffer = ((int32_t)cMessage[port-1][5]<<0) + ((int32_t)cMessage[port-1][6]<<8) + ((int32_t)cMessage[port-1][7]<<16) + ((int32_t)cMessage[port-1][8]<<24); break;									
+											remoteBuffer = ((int32_t)cMessage[port-1][5]<<0) + ((int32_t)cMessage[port-1][6]<<8) + ((int32_t)cMessage[port-1][7]<<16) + ((int32_t)cMessage[port-1][8]<<24); break;
                   	case FMT_FLOAT:
 											remoteBuffer = ((uint64_t)cMessage[port-1][5]<<0) + ((uint64_t)cMessage[port-1][6]<<8) + ((uint64_t)cMessage[port-1][7]<<16) + ((uint64_t)cMessage[port-1][8]<<24) + \
 																		 ((uint64_t)cMessage[port-1][9]<<32) + ((uint64_t)cMessage[port-1][10]<<40) + ((uint64_t)cMessage[port-1][11]<<48) + ((uint64_t)cMessage[port-1][12]<<56); break;
                   	default:
                   		break;
-                  }										
+                  }
 								}
 								else										// We requested a memory location
 								{
@@ -842,33 +842,33 @@ void PxMessagingTask(void * argument)
 									switch (remoteBuffer)															// Requested format
                   {																									// Note that cMessage[port-1][4] can be unaligned. That's why we cannot use simple memory access
                   	case FMT_BOOL:
-										case FMT_UINT8: 
+										case FMT_UINT8:
 											remoteBuffer = cMessage[port-1][4]; break;
 										case FMT_INT8:
 											remoteBuffer = (int8_t)cMessage[port-1][4]; break;
-                  	case FMT_UINT16: 
+                  	case FMT_UINT16:
 											remoteBuffer = ((uint16_t)cMessage[port-1][4]<<0) + ((uint16_t)cMessage[port-1][5]<<8); break;
-                  	case FMT_INT16: 
+                  	case FMT_INT16:
 											remoteBuffer = ((int16_t)cMessage[port-1][4]<<0) + ((int16_t)cMessage[port-1][5]<<8); break;
-                  	case FMT_UINT32: 
+                  	case FMT_UINT32:
 											remoteBuffer = ((uint32_t)cMessage[port-1][4]<<0) + ((uint32_t)cMessage[port-1][5]<<8) + ((uint32_t)cMessage[port-1][6]<<16) + ((uint32_t)cMessage[port-1][7]<<24); break;
 										case FMT_INT32:
-											remoteBuffer = ((int32_t)cMessage[port-1][4]<<0) + ((int32_t)cMessage[port-1][5]<<8) + ((int32_t)cMessage[port-1][6]<<16) + ((int32_t)cMessage[port-1][7]<<24); break;									
+											remoteBuffer = ((int32_t)cMessage[port-1][4]<<0) + ((int32_t)cMessage[port-1][5]<<8) + ((int32_t)cMessage[port-1][6]<<16) + ((int32_t)cMessage[port-1][7]<<24); break;
                   	case FMT_FLOAT:
 											remoteBuffer = ((uint64_t)cMessage[port-1][4]<<0) + ((uint64_t)cMessage[port-1][5]<<8) + ((uint64_t)cMessage[port-1][6]<<16) + ((uint64_t)cMessage[port-1][7]<<24) + \
 																		 ((uint64_t)cMessage[port-1][8]<<32) + ((uint64_t)cMessage[port-1][9]<<40) + ((uint64_t)cMessage[port-1][10]<<48) + ((uint64_t)cMessage[port-1][11]<<56); break;
                   	default:
                   		break;
-                  }															
+                  }
 								}
 								// Remote read status
 								if (responseStatus != BOS_ERR_REMOTE_READ_NO_VAR)	responseStatus = BOS_OK;
-								break;	
+								break;
 
-								
+
 							case CODE_write_remote :
 							case CODE_write_remote_force :
-								
+
 								responseStatus = BOS_OK;		// Initialize response
 								if(cMessage[port-1][4])			// request for a BOS var
 								{
@@ -880,8 +880,8 @@ void PxMessagingTask(void * argument)
 										switch (cMessage[port-1][5])											// requested format
 										{
 											case FMT_BOOL:
-											case FMT_UINT8: 
-												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist																															
+											case FMT_UINT8:
+												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist
 													temp32 = (uint32_t)malloc(sizeof(uint8_t));							// Create a new one
 													if (temp32 != 0) {
 														BOS_var_reg[cMessage[port-1][4]-1] = ((temp32-SRAM_BASE)<<16) + cMessage[port-1][5];
@@ -890,11 +890,11 @@ void PxMessagingTask(void * argument)
 													}
 												}
 												if (responseStatus != BOS_ERR_REMOTE_WRITE_MEM_FULL)			// Write remote value
-													*(__IO uint8_t *)temp32 = cMessage[port-1][6];					
+													*(__IO uint8_t *)temp32 = cMessage[port-1][6];
 												break;
-												
-											case FMT_INT8: 
-												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist																															
+
+											case FMT_INT8:
+												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist
 													temp32 = (uint32_t)malloc(sizeof(int8_t));							// Create a new one
 													if (temp32 != 0) {
 														BOS_var_reg[cMessage[port-1][4]-1] = ((temp32-SRAM_BASE)<<16) + cMessage[port-1][5];
@@ -903,11 +903,11 @@ void PxMessagingTask(void * argument)
 													}
 												}
 												if (responseStatus != BOS_ERR_REMOTE_WRITE_MEM_FULL)			// Write remote value
-													*(__IO int8_t *)temp32 = (int8_t)cMessage[port-1][6];		
+													*(__IO int8_t *)temp32 = (int8_t)cMessage[port-1][6];
 												break;
-												
-											case FMT_UINT16: 
-												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist																															
+
+											case FMT_UINT16:
+												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist
 													temp32 = (uint32_t)malloc(sizeof(uint16_t));						// Create a new one
 													if (temp32 != 0) {
 														BOS_var_reg[cMessage[port-1][4]-1] = ((temp32-SRAM_BASE)<<16) + cMessage[port-1][5];
@@ -916,11 +916,11 @@ void PxMessagingTask(void * argument)
 													}
 												}
 												if (responseStatus != BOS_ERR_REMOTE_WRITE_MEM_FULL)			// Write remote value
-													*(__IO uint16_t *)temp32 = ((uint16_t)cMessage[port-1][6]<<0) + ((uint16_t)cMessage[port-1][7]<<8);					
+													*(__IO uint16_t *)temp32 = ((uint16_t)cMessage[port-1][6]<<0) + ((uint16_t)cMessage[port-1][7]<<8);
 												break;
-												
-											case FMT_INT16: 
-												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist																															
+
+											case FMT_INT16:
+												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist
 													temp32 = (uint32_t)malloc(sizeof(int16_t));							// Create a new one
 													if (temp32 != 0) {
 														BOS_var_reg[cMessage[port-1][4]-1] = ((temp32-SRAM_BASE)<<16) + cMessage[port-1][5];
@@ -929,11 +929,11 @@ void PxMessagingTask(void * argument)
 													}
 												}
 												if (responseStatus != BOS_ERR_REMOTE_WRITE_MEM_FULL)			// Write remote value
-													*(__IO int16_t *)temp32 = ((int16_t)cMessage[port-1][6]<<0) + ((int16_t)cMessage[port-1][7]<<8);					
+													*(__IO int16_t *)temp32 = ((int16_t)cMessage[port-1][6]<<0) + ((int16_t)cMessage[port-1][7]<<8);
 												break;
-												
-											case FMT_UINT32: 
-												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist																															
+
+											case FMT_UINT32:
+												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist
 													temp32 = (uint32_t)malloc(sizeof(uint32_t));						// Create a new one
 													if (temp32 != 0) {
 														BOS_var_reg[cMessage[port-1][4]-1] = ((temp32-SRAM_BASE)<<16) + cMessage[port-1][5];
@@ -942,11 +942,11 @@ void PxMessagingTask(void * argument)
 													}
 												}
 												if (responseStatus != BOS_ERR_REMOTE_WRITE_MEM_FULL)			// Write remote value
-													*(__IO uint32_t *)temp32 = ((uint32_t)cMessage[port-1][6]<<0) + ((uint32_t)cMessage[port-1][7]<<8) + ((uint32_t)cMessage[port-1][8]<<16) + ((uint32_t)cMessage[port-1][9]<<24);					
+													*(__IO uint32_t *)temp32 = ((uint32_t)cMessage[port-1][6]<<0) + ((uint32_t)cMessage[port-1][7]<<8) + ((uint32_t)cMessage[port-1][8]<<16) + ((uint32_t)cMessage[port-1][9]<<24);
 												break;
-												
-											case FMT_INT32: 
-												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist																															
+
+											case FMT_INT32:
+												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist
 													temp32 = (uint32_t)malloc(sizeof(int32_t));							// Create a new one
 													if (temp32 != 0) {
 														BOS_var_reg[cMessage[port-1][4]-1] = ((temp32-SRAM_BASE)<<16) + cMessage[port-1][5];
@@ -955,11 +955,11 @@ void PxMessagingTask(void * argument)
 													}
 												}
 												if (responseStatus != BOS_ERR_REMOTE_WRITE_MEM_FULL)			// Write remote value
-													*(__IO int32_t *)temp32 = ((int32_t)cMessage[port-1][6]<<0) + ((int32_t)cMessage[port-1][7]<<8) + ((int32_t)cMessage[port-1][8]<<16) + ((int32_t)cMessage[port-1][9]<<24);					
+													*(__IO int32_t *)temp32 = ((int32_t)cMessage[port-1][6]<<0) + ((int32_t)cMessage[port-1][7]<<8) + ((int32_t)cMessage[port-1][8]<<16) + ((int32_t)cMessage[port-1][9]<<24);
 												break;
-												
+
 											case FMT_FLOAT:
-												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist																															
+												if ((BOS_var_reg[cMessage[port-1][4]-1]&0x000F) == 0) {		// Variable does not exist
 													temp32 = (uint32_t)malloc(sizeof(float));								// Create a new one
 													if (temp32 != 0) {
 														BOS_var_reg[cMessage[port-1][4]-1] = ((temp32-SRAM_BASE)<<16) + cMessage[port-1][5];
@@ -970,57 +970,57 @@ void PxMessagingTask(void * argument)
 												if (responseStatus != BOS_ERR_REMOTE_WRITE_MEM_FULL) {			// Write remote value
 													remoteBuffer = ((uint64_t)cMessage[port-1][6]<<0) + ((uint64_t)cMessage[port-1][7]<<8) + ((uint64_t)cMessage[port-1][8]<<16) + ((uint64_t)cMessage[port-1][9]<<24) + \
 																				 ((uint64_t)cMessage[port-1][10]<<32) + ((uint64_t)cMessage[port-1][11]<<40) + ((uint64_t)cMessage[port-1][12]<<48) + ((uint64_t)cMessage[port-1][13]<<56);
-													*(float *)temp32 = *(float *)&remoteBuffer;																		
+													*(float *)temp32 = *(float *)&remoteBuffer;
 												}
-												break;												
-														
+												break;
+
 											default:
 												break;
-										}			
-										
+										}
+
 										/* Update local format if needed - Todo give local warning later */
-										if ( (BOS_var_reg[cMessage[port-1][4]-1] & 0x000F) != cMessage[port-1][5] ) {		
+										if ( (BOS_var_reg[cMessage[port-1][4]-1] & 0x000F) != cMessage[port-1][5] ) {
 											BOS_var_reg[cMessage[port-1][4]-1] &= (0xFFF0+cMessage[port-1][5]);
 											responseStatus = BOS_ERR_LOCAL_FORMAT_UPDATED;
-										}								
-									}		
+										}
+									}
 									else
-									{		
+									{
 										responseStatus = BOS_ERR_REMOTE_WRITE_INDEX;		// BOS var index out of range
-									}	
+									}
 								}
 								else												// request for a memory address
 								{
 									// Get the requested address
-									temp32 = ( (uint32_t) cMessage[port-1][6] << 24 ) + ( (uint32_t) cMessage[port-1][7] << 16 ) + ( (uint32_t) cMessage[port-1][8] << 8 ) + cMessage[port-1][9];				
+									temp32 = ( (uint32_t) cMessage[port-1][6] << 24 ) + ( (uint32_t) cMessage[port-1][7] << 16 ) + ( (uint32_t) cMessage[port-1][8] << 8 ) + cMessage[port-1][9];
 									// Write data to Flash or SRAM based on requested format
 									if ( temp32 >= SRAM_BASE && temp32 < (SRAM_BASE+SRAM_SIZE) )			// SRAM
 									{
 										switch (cMessage[port-1][5])															// Requested format
-										{																									
+										{
 											case FMT_BOOL:
-											case FMT_UINT8: 
+											case FMT_UINT8:
 												*(__IO uint8_t *)temp32 = cMessage[port-1][10]; break;
 											case FMT_INT8:
 												*(__IO int8_t *)temp32 = (int8_t)cMessage[port-1][10]; break;
-											case FMT_UINT16: 
+											case FMT_UINT16:
 												*(__IO uint16_t *)temp32 = ((uint16_t)cMessage[port-1][10]<<0) + ((uint16_t)cMessage[port-1][11]<<8);	break;
-											case FMT_INT16: 
+											case FMT_INT16:
 												*(__IO int16_t *)temp32 = ((int16_t)cMessage[port-1][10]<<0) + ((int16_t)cMessage[port-1][11]<<8);	break;
-											case FMT_UINT32: 
+											case FMT_UINT32:
 												*(__IO uint32_t *)temp32 = ((uint32_t)cMessage[port-1][10]<<0) + ((uint32_t)cMessage[port-1][11]<<8) + ((uint32_t)cMessage[port-1][12]<<16) + ((uint32_t)cMessage[port-1][13]<<24); break;
 											case FMT_INT32:
-												*(__IO int32_t *)temp32 = ((int32_t)cMessage[port-1][10]<<0) + ((int32_t)cMessage[port-1][11]<<8) + ((int32_t)cMessage[port-1][12]<<16) + ((int32_t)cMessage[port-1][13]<<24); break; 									
+												*(__IO int32_t *)temp32 = ((int32_t)cMessage[port-1][10]<<0) + ((int32_t)cMessage[port-1][11]<<8) + ((int32_t)cMessage[port-1][12]<<16) + ((int32_t)cMessage[port-1][13]<<24); break;
 											case FMT_FLOAT:
 												remoteBuffer = ((uint64_t)cMessage[port-1][10]<<0) + ((uint64_t)cMessage[port-1][11]<<8) + ((uint64_t)cMessage[port-1][12]<<16) + ((uint64_t)cMessage[port-1][13]<<24) + \
 																			 ((uint64_t)cMessage[port-1][14]<<32) + ((uint64_t)cMessage[port-1][15]<<40) + ((uint64_t)cMessage[port-1][16]<<48) + ((uint64_t)cMessage[port-1][17]<<56);
 												*(float *)temp32 = *(float *)&remoteBuffer;	break;
 											default:
 												break;
-										}												
+										}
 									}
 									else if ( temp32 >= FLASH_BASE && temp32 < (FLASH_BASE+FLASH_SIZE) )			// Flash
-									{								
+									{
 										HAL_FLASH_Unlock();
 										/* Erase page if force write is requested */
 										if (code == CODE_write_remote_force)
@@ -1030,22 +1030,22 @@ void PxMessagingTask(void * argument)
 											erase.PageAddress = temp32;
 											erase.NbPages = 1;
 											status = HAL_FLASHEx_Erase(&erase, &eraseError);
-											if (status != HAL_OK || eraseError != 0xFFFFFFFF) responseStatus = BOS_ERR_REMOTE_WRITE_FLASH;							
+											if (status != HAL_OK || eraseError != 0xFFFFFFFF) responseStatus = BOS_ERR_REMOTE_WRITE_FLASH;
 										}
 										/* Write new value */
 										if (responseStatus == BOS_OK)
 										{
 											switch (cMessage[port-1][5])															// Requested format
-											{																									
+											{
 												case FMT_BOOL:
-												case FMT_UINT8: 
+												case FMT_UINT8:
 												case FMT_INT8:
 													if (*(__IO uint16_t *)temp32 != 0xFFFF) {
 														responseStatus = BOS_ERR_REMOTE_WRITE_FLASH; break;
 													} else {
 														remoteBuffer = cMessage[port-1][10]; status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, temp32, remoteBuffer); break;
 													}
-												case FMT_UINT16: 
+												case FMT_UINT16:
 												case FMT_INT16:
 													if (*(__IO uint16_t *)temp32 != 0xFFFF) {
 														responseStatus = BOS_ERR_REMOTE_WRITE_FLASH; break;
@@ -1053,14 +1053,14 @@ void PxMessagingTask(void * argument)
 														remoteBuffer = ((uint16_t)cMessage[port-1][10]<<0) + ((uint16_t)cMessage[port-1][11]<<8);
 														status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, temp32, remoteBuffer); break;
 													}
-												case FMT_UINT32: 
+												case FMT_UINT32:
 												case FMT_INT32:
 													if (*(__IO uint32_t *)temp32 != 0xFFFFFFFF) {
 														responseStatus = BOS_ERR_REMOTE_WRITE_FLASH; break;
 													} else {
-														remoteBuffer = ((uint32_t)cMessage[port-1][10]<<0) + ((uint32_t)cMessage[port-1][11]<<8) + ((uint32_t)cMessage[port-1][12]<<16) + ((uint32_t)cMessage[port-1][13]<<24); 
+														remoteBuffer = ((uint32_t)cMessage[port-1][10]<<0) + ((uint32_t)cMessage[port-1][11]<<8) + ((uint32_t)cMessage[port-1][12]<<16) + ((uint32_t)cMessage[port-1][13]<<24);
 														status = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, temp32, remoteBuffer); break;
-													}				
+													}
 												case FMT_FLOAT:
 													if (*(__IO uint64_t *)temp32 != 0xFFFFFFFFFFFFFFFF) {
 														responseStatus = BOS_ERR_REMOTE_WRITE_FLASH; break;
@@ -1071,28 +1071,28 @@ void PxMessagingTask(void * argument)
 													}
 												default:
 													break;
-											}		
-										}										
+											}
+										}
 										HAL_FLASH_Lock();
 										if (status != HAL_OK)	responseStatus = BOS_ERR_REMOTE_WRITE_FLASH;
-									}	
-									else	
+									}
+									else
 										responseStatus = BOS_ERR_REMOTE_WRITE_ADDRESS;
 								}
-								
+
 								/* Send confirmation back */
 								if (responseMode == BOS_RESPONSE_ALL || responseMode == BOS_RESPONSE_MSG) {
 									messageParams[0] = responseStatus;
-									SendMessageToModule(src, CODE_write_remote_response, 1);											
+									SendMessageToModule(src, CODE_write_remote_response, 1);
 								}
-								break;	
+								break;
 
-								
+
 							case CODE_write_remote_response :
 								responseStatus = (BOS_Status) cMessage[port-1][4];
-								break;	
-							
-							
+								break;
+
+
 							default :
 								/* Process module tasks */
 								result = (BOS_Status) Module_MessagingTask(code, port, src, dst);
@@ -1101,16 +1101,16 @@ void PxMessagingTask(void * argument)
 					}
 				}
 
-			}	
-			
+			}
+
 		}
-		
+
 		/* Is it unknown message? */
 		if (result == BOS_ERR_UnknownMessage) {
 			SendMessageToModule(src, CODE_unknown_message, 0);
-			result = BOS_OK;			
+			result = BOS_OK;
 		}
-		
+
 		/* Reset message buffer */
 		memset(cMessage[port-1], 0, (size_t) messageLength[port-1]);
 		messageLength[port-1] = 0;
@@ -1121,7 +1121,7 @@ void PxMessagingTask(void * argument)
 			HAL_UART_Receive_IT(GetUart(port), (uint8_t *)&cRxedChar, 1);
 		}
 		BOS.trace = oldTraceMode;
-		
+
 		taskYIELD();
 	}
 
@@ -1134,7 +1134,7 @@ void PxMessagingTask(void * argument)
 void MX_TIM_USEC_Init(void)
 {
   TIM_MasterConfigTypeDef sMasterConfig;
-	
+
 	/* Peripheral clock enable */
 	__TIM14_CLK_ENABLE();
 
@@ -1153,7 +1153,7 @@ void MX_TIM_USEC_Init(void)
 
 /*-----------------------------------------------------------*/
 
-/* --- Used by FoundRoute: Find the index of the minimum module in dist that is still unvisited 
+/* --- Used by FoundRoute: Find the index of the minimum module in dist that is still unvisited
 */
 uint8_t minArr(uint8_t* arr, uint8_t* Q)
 {
@@ -1169,34 +1169,34 @@ uint8_t minArr(uint8_t* arr, uint8_t* Q)
 			index = i;
 		}
 	}
-	
+
 	return index;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Used by FoundRoute: Check if Q is empty (all modules have been visited) 
+/* --- Used by FoundRoute: Check if Q is empty (all modules have been visited)
 */
 uint8_t QnotEmpty(uint8_t* Q)
-{		
+{
 	char temp = 1;
 
 	for (int i=0 ; i<N ; i++) {
 		temp &= Q[i];
-	}	
-	
+	}
+
 	return temp;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Forward a received message to its destination 
+/* --- Forward a received message to its destination
 */
 BOS_Status ForwardReceivedMessage(uint8_t incomingPort)
 {
 	BOS_Status result = BOS_OK;
 	uint8_t length = 0, port = 0, src = 0; uint16_t code = 0;
-	
+
 	/* Message length */
 	length = messageLength[incomingPort-1];
 	/* Message source */
@@ -1205,14 +1205,14 @@ BOS_Status ForwardReceivedMessage(uint8_t incomingPort)
 	code = ( (uint16_t) cMessage[incomingPort-1][2] << 8 ) + cMessage[incomingPort-1][3];
 	/* Message parameters */
 	memcpy(messageParams, &cMessage[incomingPort-1][4], (size_t) (length-5) );
-	
-	/* Find best output port for destination module */
-	port = FindRoute(myID, cMessage[incomingPort-1][0]); 
-	
-	/* Transmit the message from this port */
-	SendMessageFromPort(port, src, cMessage[incomingPort-1][0], code, length-5);	
 
-	return result;	
+	/* Find best output port for destination module */
+	port = FindRoute(myID, cMessage[incomingPort-1][0]);
+
+	/* Transmit the message from this port */
+	SendMessageFromPort(port, src, cMessage[incomingPort-1][0], code, length-5);
+
+	return result;
 }
 
 /*-----------------------------------------------------------*/
@@ -1222,133 +1222,133 @@ BOS_Status ForwardReceivedMessage(uint8_t incomingPort)
 void NotifyMessagingTaskFromISR(uint8_t port)
 {
 	portBASE_TYPE xHigherPriorityTaskWoken = pdFALSE;
-	
+
 	switch (port)
 	{
 	#ifdef _P1
-		case P1 : 
-			vTaskNotifyGiveFromISR(P1MsgTaskHandle, &( xHigherPriorityTaskWoken ) );	
+		case P1 :
+			vTaskNotifyGiveFromISR(P1MsgTaskHandle, &( xHigherPriorityTaskWoken ) );
 	#endif
 	#ifdef _P2
 		case P2 :
-			vTaskNotifyGiveFromISR(P2MsgTaskHandle, &( xHigherPriorityTaskWoken ) );	
+			vTaskNotifyGiveFromISR(P2MsgTaskHandle, &( xHigherPriorityTaskWoken ) );
 	#endif
 	#ifdef _P3
 		case P3 :
-			vTaskNotifyGiveFromISR(P3MsgTaskHandle, &( xHigherPriorityTaskWoken ) );	
+			vTaskNotifyGiveFromISR(P3MsgTaskHandle, &( xHigherPriorityTaskWoken ) );
 	#endif
 	#ifdef _P4
 		case P4 :
-			vTaskNotifyGiveFromISR(P4MsgTaskHandle, &( xHigherPriorityTaskWoken ) );	
+			vTaskNotifyGiveFromISR(P4MsgTaskHandle, &( xHigherPriorityTaskWoken ) );
 	#endif
 	#ifdef _P5
 		case P5 :
-			vTaskNotifyGiveFromISR(P5MsgTaskHandle, &( xHigherPriorityTaskWoken ) );	
+			vTaskNotifyGiveFromISR(P5MsgTaskHandle, &( xHigherPriorityTaskWoken ) );
 	#endif
 	#ifdef _P6
 		case P6 :
-			vTaskNotifyGiveFromISR(P6MsgTaskHandle, &( xHigherPriorityTaskWoken ) );	
+			vTaskNotifyGiveFromISR(P6MsgTaskHandle, &( xHigherPriorityTaskWoken ) );
 	#endif
 		default:
 			;
-	}		
+	}
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Activate Messaging Tasks 
+/* --- Activate Messaging Tasks
 */
 void NotifyMessagingTask(uint8_t port)
 {
 	switch (port)
 	{
 	#ifdef _P1
-		case P1 : 
-			xTaskNotifyGive(P1MsgTaskHandle);	
+		case P1 :
+			xTaskNotifyGive(P1MsgTaskHandle);
 	#endif
 	#ifdef _P2
 		case P2 :
-			xTaskNotifyGive(P2MsgTaskHandle);	
+			xTaskNotifyGive(P2MsgTaskHandle);
 	#endif
 	#ifdef _P3
 		case P3 :
-			xTaskNotifyGive(P3MsgTaskHandle);	
+			xTaskNotifyGive(P3MsgTaskHandle);
 	#endif
 	#ifdef _P4
 		case P4 :
-			xTaskNotifyGive(P4MsgTaskHandle);	
+			xTaskNotifyGive(P4MsgTaskHandle);
 	#endif
 	#ifdef _P5
 		case P5 :
-			xTaskNotifyGive(P5MsgTaskHandle);	
+			xTaskNotifyGive(P5MsgTaskHandle);
 	#endif
 	#ifdef _P6
 		case P6 :
-			xTaskNotifyGive(P6MsgTaskHandle);	
+			xTaskNotifyGive(P6MsgTaskHandle);
 	#endif
 		default:
 			;
-	}		
+	}
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Load stored variables from emulated EEPROM 
+/* --- Load stored variables from emulated EEPROM
 */
 void LoadEEvars(void)
 {
 	/* Load array topology */
-#ifndef _N
+#ifndef __N__
 	LoadROtopology();
-#endif	
+#endif
 	/* Load port directions */
 	LoadEEportsDir();
-	
+
 	/* Load module alias */
 	LoadEEalias();
 
 	/* Load group modules */
 	LoadEEgroup();
-	
+
 	/* Load DMA streams */
 	LoadEEstreams();
-	
+
 	/* Load parameters. If not found, load defaults */
-	LoadEEparams();	
-	
+	LoadEEparams();
+
 	/* Load buttons */
-	LoadEEbuttons();	
+	LoadEEbuttons();
 }
 
 /*-----------------------------------------------------------*/
-#ifndef _N
-/* --- Save array topology in Flash RO --- 
+#ifndef __N__
+/* --- Save array topology in Flash RO ---
 */
 uint8_t SaveROtopology(void)
 {
-	BOS_Status result = BOS_OK; 
+	BOS_Status result = BOS_OK;
 	HAL_StatusTypeDef FlashStatus = HAL_OK;
 	uint16_t add = 2, temp = 0;
 
 	HAL_FLASH_Unlock();
-	
+
 	/* Erase RO area */
 	FLASH_PageErase(RO_START_ADDRESS);
-	FlashStatus = FLASH_WaitForLastOperation((uint32_t)HAL_FLASH_TIMEOUT_VALUE); 
+	FlashStatus = FLASH_WaitForLastOperation((uint32_t)HAL_FLASH_TIMEOUT_VALUE);
 	if(FlashStatus != HAL_OK)
 	{
 		return pFlash.ErrorCode;
 	}
 	else
-	{			
+	{
 		/* Operation is completed, disable the PER Bit */
 		CLEAR_BIT(FLASH->CR, FLASH_CR_PER);
-	}	
-	
+	}
+
 	/* Save number of modules and myID */
 	temp = (uint16_t) (N<<8) + myID;
 	HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, RO_START_ADDRESS, temp);
-	FlashStatus = FLASH_WaitForLastOperation((uint32_t)HAL_FLASH_TIMEOUT_VALUE); 
+	FlashStatus = FLASH_WaitForLastOperation((uint32_t)HAL_FLASH_TIMEOUT_VALUE);
 	if (FlashStatus != HAL_OK)
 	{
 		return pFlash.ErrorCode;
@@ -1357,8 +1357,8 @@ uint8_t SaveROtopology(void)
 	{
 		/* If the program operation is completed, disable the PG Bit */
 		CLEAR_BIT(FLASH->CR, FLASH_CR_PG);
-	}		
-	
+	}
+
 	/* Save topology */
 	for(uint8_t i=1 ; i<=N ; i++)
 	{
@@ -1367,61 +1367,61 @@ uint8_t SaveROtopology(void)
 			if (array[i-1][0]) {
 				HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, RO_START_ADDRESS+add, array[i-1][j]);
 				add += 2;
-			}				
+			}
 		}
 	}
-	
+
 	HAL_FLASH_Lock();
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Clear array topology in Flash RO --- 
+/* --- Clear array topology in Flash RO ---
 */
 uint8_t ClearROtopology(void)
 {
-	BOS_Status result = BOS_OK; 
+	BOS_Status result = BOS_OK;
 	HAL_StatusTypeDef FlashStatus = HAL_OK;
 
-	// Clear the array 
+	// Clear the array
 	memset(array, 0, sizeof(array));
 	N = 1; myID = 0;
-	
+
 	HAL_FLASH_Unlock();
-	
+
 	/* Erase RO area */
 	FLASH_PageErase(RO_START_ADDRESS);
-	FlashStatus = FLASH_WaitForLastOperation((uint32_t)HAL_FLASH_TIMEOUT_VALUE); 
+	FlashStatus = FLASH_WaitForLastOperation((uint32_t)HAL_FLASH_TIMEOUT_VALUE);
 	if(FlashStatus != HAL_OK)
 	{
 		return pFlash.ErrorCode;
 	}
 	else
-	{			
+	{
 		/* Operation is completed, disable the PER Bit */
 		CLEAR_BIT(FLASH->CR, FLASH_CR_PER);
-	}	
+	}
 
 	HAL_FLASH_Lock();
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-///* --- Save array topology in EEPROM --- 
+///* --- Save array topology in EEPROM ---
 //*/
 //BOS_Status SaveEEtopology(void)
 //{
-//	BOS_Status result = BOS_OK; 
+//	BOS_Status result = BOS_OK;
 //	uint16_t add = 0, temp = 0;
-//	
+//
 //	/* Save number of modules and myID */
 //	temp = (uint16_t) (N<<8) + myID;
 //	EE_WriteVariable(VirtAddVarTab[_EE_NBase], temp);
-//	
+//
 //	/* Save topology */
 //	for(uint8_t i=1 ; i<=N ; i++)
 //	{
@@ -1430,28 +1430,28 @@ uint8_t ClearROtopology(void)
 //			if (array[i-1][0]) {
 //				EE_WriteVariable(VirtAddVarTab[_EE_topologyBase+add], array[i-1][j]);
 //				add++;
-//			}				
+//			}
 //		}
 //	}
-//	
+//
 //	if ((add+_EE_NBase) >= _EE_portDirBase)
 //		result = BOS_ERR_EEPROM;
-//	
+//
 //	return result;
 //}
 #endif
 /*-----------------------------------------------------------*/
-#ifndef _N
-/* --- Load array topology stored in Flash RO --- 
+#ifndef __N__
+/* --- Load array topology stored in Flash RO ---
 */
 uint8_t LoadROtopology(void)
 {
-	BOS_Status result = BOS_OK; 
+	BOS_Status result = BOS_OK;
 	uint16_t add = 2, temp = 0;
-	
+
 	/* Load number of modules */
 	temp = (*(__IO uint16_t*)(RO_START_ADDRESS));
-	
+
 	if (temp == 0xFFFF)				// Memory has been erased
 	{
 		N = 1;
@@ -1459,183 +1459,183 @@ uint8_t LoadROtopology(void)
 		return BOS_MEM_ERASED;
 	}
 	else
-	{		
+	{
 		N = (uint8_t) (temp>>8);
 		if (N == 0)	N = 1;
 		myID = (uint8_t) temp;
-		
+
 		/* Load topology */
 		for(uint8_t i=1 ; i<=N ; i++)
 		{
 			for(uint8_t j=0 ; j<=MaxNumOfPorts ; j++)
 			{
 				array[i-1][j] = (*(__IO uint16_t*)(RO_START_ADDRESS+add));
-				add += 2;			
+				add += 2;
 			}
-		}	
+		}
 	}
-	
+
 	return result;
 }
 /*-----------------------------------------------------------*/
 
-///* --- Load array topology stored in EEPROM --- 
+///* --- Load array topology stored in EEPROM ---
 //*/
 //BOS_Status LoadEEtopology(void)
 //{
-//	BOS_Status result = BOS_OK; 
+//	BOS_Status result = BOS_OK;
 //	uint16_t add = 0, temp = 0;
-//	
+//
 //	/* Load number of modules */
 //	EE_ReadVariable(VirtAddVarTab[_EE_NBase], &temp);
 //	N = (uint8_t) (temp>>8);
 //	if (N == 0)	N = 1;
 //	myID = (uint8_t) temp;
-//	
+//
 //	/* Load topology */
 //	for(uint8_t i=1 ; i<=N ; i++)
 //	{
 //		for(uint8_t j=0 ; j<=MaxNumOfPorts ; j++)
 //		{
 //			EE_ReadVariable(VirtAddVarTab[_EE_topologyBase+add], &array[i-1][j]);
-//			add++;			
+//			add++;
 //		}
-//	}	
-//	
+//	}
+//
 //	return result;
 //}
 #endif
 /*-----------------------------------------------------------*/
 
-/* --- Save array ports directions in EEPROM --- 
+/* --- Save array ports directions in EEPROM ---
 */
 BOS_Status SaveEEportsDir(void)
 {
-	BOS_Status result = BOS_OK; 
-	
+	BOS_Status result = BOS_OK;
+
 	for(uint8_t i=1 ; i<=N ; i++)
 	{
 		if (arrayPortsDir[i-1])
-			EE_WriteVariable(VirtAddVarTab[_EE_portDirBase+i-1], arrayPortsDir[i-1]);		
-		
+			EE_WriteVariable(VirtAddVarTab[_EE_portDirBase+i-1], arrayPortsDir[i-1]);
+
 		if ((i+_EE_portDirBase) >= _EE_aliasBase)
 			result = BOS_ERR_EEPROM;
 	}
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Clear array ports directions in EEPROM --- 
+/* --- Clear array ports directions in EEPROM ---
 */
 BOS_Status ClearEEportsDir(void)
 {
-	BOS_Status result = BOS_OK; 
-	
+	BOS_Status result = BOS_OK;
+
 	memset(arrayPortsDir, 0, sizeof(arrayPortsDir));
-	
+
 	for(uint8_t i=1 ; i<=N ; i++)
 	{
 		if (arrayPortsDir[i-1])
-			EE_WriteVariable(VirtAddVarTab[_EE_portDirBase+i-1], arrayPortsDir[i-1]);		
-		
+			EE_WriteVariable(VirtAddVarTab[_EE_portDirBase+i-1], arrayPortsDir[i-1]);
+
 		if ((i+_EE_portDirBase) >= _EE_aliasBase)
 			result = BOS_ERR_EEPROM;
 	}
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Load array ports directions stored in EEPROM --- 
+/* --- Load array ports directions stored in EEPROM ---
 */
 BOS_Status LoadEEportsDir(void)
 {
-	BOS_Status result = BOS_OK; 
-	
+	BOS_Status result = BOS_OK;
+
 	for(uint8_t i=1 ; i<=N ; i++)
 	{
-		EE_ReadVariable(VirtAddVarTab[_EE_portDirBase+i-1], &arrayPortsDir[i-1]);		
-		
+		EE_ReadVariable(VirtAddVarTab[_EE_portDirBase+i-1], &arrayPortsDir[i-1]);
+
 		if ((i+_EE_portDirBase) >= _EE_aliasBase)
 			result = BOS_ERR_EEPROM;
 	}
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Save module alias in EEPROM --- 
+/* --- Save module alias in EEPROM ---
 */
 BOS_Status SaveEEalias(void)
 {
-	BOS_Status result = BOS_OK; 
+	BOS_Status result = BOS_OK;
 	uint16_t add = 0, temp = 0;
-	
+
 	for(uint8_t i=0 ; i<=N ; i++)				// N+1 module aliases
 	{
-		if (moduleAlias[i][0]) 				
+		if (moduleAlias[i][0])
 		{
 			for(uint8_t j=1 ; j<=MaxLengthOfAlias ; j+=2)
 			{
 				temp = (uint16_t) (moduleAlias[i][j-1]<<8) + moduleAlias[i][j];
 				EE_WriteVariable(VirtAddVarTab[_EE_aliasBase+add], temp);
-				add++;			
+				add++;
 			}
-		}			
+		}
 	}
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Save module groups in EEPROM --- 
+/* --- Save module groups in EEPROM ---
 */
 BOS_Status SaveEEgroup(void)
 {
 	BOS_Status result = BOS_OK;
 	uint16_t add = 0, temp = 0; uint8_t i=0;
-	
+
 	/* Save group members */
 	for(i=0 ; i<N ; i++)			// N modules
 	{
-		if (groupModules[i]) 
+		if (groupModules[i])
 		{
 			EE_WriteVariable(VirtAddVarTab[_EE_groupModulesBase+add], groupModules[i]);
-			add++;			
-		}			
+			add++;
+		}
 	}
 
 	/* Save group alias */
 	for(i=0 ; i<MaxNumOfGroups ; i++)		// MaxNumOfGroups group aliases
 	{
-		if (groupAlias[i][0]) 				
+		if (groupAlias[i][0])
 		{
 			for(uint8_t j=1 ; j<=MaxLengthOfAlias ; j+=2)
 			{
 				temp = (uint16_t) (groupAlias[i][j-1]<<8) + groupAlias[i][j];
 				EE_WriteVariable(VirtAddVarTab[_EE_groupAliasBase+add], temp);
-				add++;			
+				add++;
 			}
-		}			
+		}
 	}
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Load module alias stored in EEPROM --- 
+/* --- Load module alias stored in EEPROM ---
 */
 BOS_Status LoadEEalias(void)
 {
-	BOS_Status result = BOS_OK; 
+	BOS_Status result = BOS_OK;
 	uint16_t add = 0, temp = 0;
-	
+
 	for(uint8_t i=0 ; i<=N ; i++)				// N+1 module aliases
 	{
 		for(uint8_t j=1 ; j<=MaxLengthOfAlias ; j+=2)
@@ -1643,23 +1643,23 @@ BOS_Status LoadEEalias(void)
 			EE_ReadVariable(VirtAddVarTab[_EE_aliasBase+add], &temp);
 			moduleAlias[i][j] = (uint8_t) temp;
 			moduleAlias[i][j-1] = (uint8_t) (temp>>8);
-			add++;			
+			add++;
 		}
 		moduleAlias[i][MaxLengthOfAlias] = '\0';
 	}
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Load module groups stored in EEPROM --- 
+/* --- Load module groups stored in EEPROM ---
 */
 BOS_Status LoadEEgroup(void)
 {
-	BOS_Status result = BOS_OK; 
+	BOS_Status result = BOS_OK;
 	uint16_t add = 0, temp = 0; uint8_t i=0;
-	
+
 	/* Load group members */
 	for(i=0 ; i<N ; i++)			// N modules
 	{
@@ -1675,25 +1675,25 @@ BOS_Status LoadEEgroup(void)
 			EE_ReadVariable(VirtAddVarTab[_EE_groupAliasBase+add], &temp);
 			groupAlias[i][j] = (uint8_t) temp;
 			groupAlias[i][j-1] = (uint8_t) (temp>>8);
-			add++;			
+			add++;
 		}
 		groupAlias[i][MaxLengthOfAlias] = '\0';
 	}
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Load module DMA streams --- 
+/* --- Load module DMA streams ---
 */
 BOS_Status LoadEEstreams(void)
 {
-	BOS_Status result = BOS_OK; 
-	uint16_t temp1 = 0, temp2 = 0, status1 = 0, status2 = 0; 
+	BOS_Status result = BOS_OK;
+	uint16_t temp1 = 0, temp2 = 0, status1 = 0, status2 = 0;
 	uint8_t direction = 0; uint32_t count = 0, timeout = 0;
 	static uint8_t src1, dst1, src2, dst2, src3, dst3;
-	
+
 	/* Direction */
 	status1 = EE_ReadVariable(VirtAddVarTab[_EE_DMAStreamsBase], &temp1);
 	if (!status1) {
@@ -1706,26 +1706,26 @@ BOS_Status LoadEEstreams(void)
 	if (!status1 && !status2) {
 		count = ( (uint32_t) temp1 << 16 ) + temp2;
 	}
-	
+
 	/* Timeout */
 	status1 = EE_ReadVariable(VirtAddVarTab[_EE_DMAStreamsBase+3], &temp1);
 	status2 = EE_ReadVariable(VirtAddVarTab[_EE_DMAStreamsBase+4], &temp2);
 	if (!status1 && !status2) {
 		timeout = ( (uint32_t) temp1 << 16 ) + temp2;
 	}
-	
+
 	/* src1 | dst1 */
 	status1 = EE_ReadVariable(VirtAddVarTab[_EE_DMAStreamsBase+5], &temp1);
 	if (!status1) {
 		src1 = (uint8_t) (temp1 >> 8);
 		dst1 = (uint8_t) temp1;
 	}
-	
+
 	/* src2 | dst2 */
 	status1 = EE_ReadVariable(VirtAddVarTab[_EE_DMAStreamsBase+6], &temp1);
 	if (!status1) {
 		src2 = (uint8_t) (temp1 >> 8);
-		dst2 = (uint8_t) temp1;	
+		dst2 = (uint8_t) temp1;
 	}
 
 	/* src3 | dst3 */
@@ -1734,22 +1734,22 @@ BOS_Status LoadEEstreams(void)
 		src3 = (uint8_t) (temp1 >> 8);
 		dst3 = (uint8_t) temp1;
 	}
-	
+
 	/* Activate the DMA streams */
 	SetupDMAStreamsFromMessage(direction, count, timeout, src1, dst1, src2, dst2, src3, dst3);
-	
+
 	return result;
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Load module parameters from emulated EEPROM. If erased, loade defualts --- 
+/* --- Load module parameters from emulated EEPROM. If erased, loade defualts ---
 */
 BOS_Status LoadEEparams(void)
 {
-	BOS_Status result = BOS_OK; 
-	uint16_t temp1, temp2, status1, status2; 
-	
+	BOS_Status result = BOS_OK;
+	uint16_t temp1, temp2, status1, status2;
+
 	/* Read params base - BOS response and BOS trace */
 	status1 = EE_ReadVariable(VirtAddVarTab[_EE_ParamsBase], &temp1);
 	/* Found the variable (EEPROM is not cleared) */
@@ -1761,20 +1761,20 @@ BOS_Status LoadEEparams(void)
 		BOS.response = BOS_default.response;
 		BOS.trace = BOS_default.trace;
 	}
-		
+
 	/* Read Button debounce */
 	status1 = EE_ReadVariable(VirtAddVarTab[_EE_ParamsDebounce], &temp1);
-	if (!status1) 
+	if (!status1)
 		BOS.buttons.debounce = temp1;
 	else
 		BOS.buttons.debounce = BOS_default.buttons.debounce;
 
 	/* Read Button single click time */
 	status1 = EE_ReadVariable(VirtAddVarTab[_EE_ParamsSinClick], &temp1);
-	if (!status1) 
+	if (!status1)
 		BOS.buttons.singleClickTime = temp1;
 	else
-		BOS.buttons.singleClickTime = BOS_default.buttons.singleClickTime;	
+		BOS.buttons.singleClickTime = BOS_default.buttons.singleClickTime;
 
 	/* Read Button double click time (min and max inter-click) */
 	status1 = EE_ReadVariable(VirtAddVarTab[_EE_ParamsDblClick], &temp1);
@@ -1782,20 +1782,20 @@ BOS_Status LoadEEparams(void)
 		BOS.buttons.minInterClickTime = (uint8_t)temp1;
 		BOS.buttons.maxInterClickTime = (uint8_t)(temp1>>8);
 	} else {
-		BOS.buttons.minInterClickTime = BOS_default.buttons.minInterClickTime;	
-		BOS.buttons.maxInterClickTime = BOS_default.buttons.maxInterClickTime;	
+		BOS.buttons.minInterClickTime = BOS_default.buttons.minInterClickTime;
+		BOS.buttons.maxInterClickTime = BOS_default.buttons.maxInterClickTime;
 	}
-	
+
 	/* Read CLI baudrate */
 	status1 = EE_ReadVariable(VirtAddVarTab[_EE_CLIBaud], &temp1);
 	status2 = EE_ReadVariable(VirtAddVarTab[_EE_CLIBaud+1], &temp2);
-	if (!status1 && !status2) 
+	if (!status1 && !status2)
 	{
 		BOS.clibaudrate = (uint32_t)temp1 | (((uint32_t)temp2)<<16);
 	}
 	else
 		BOS.clibaudrate = BOS_default.clibaudrate;
-	
+
 	/* Read RTC hourformat and daylightsaving */
 	status1 = EE_ReadVariable(VirtAddVarTab[_EE_ParamsRTC], &temp1);
 	if (!status1) {
@@ -1804,22 +1804,22 @@ BOS_Status LoadEEparams(void)
 	} else {
 		BOS.hourformat = 24;
 		BOS.daylightsaving = DAYLIGHT_NONE;
-	}		
-	
+	}
+
 	return result;
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Save module parameters to emulated EEPROM. --- 
+/* --- Save module parameters to emulated EEPROM. ---
 */
 BOS_Status SaveEEparams(void)
 {
-	BOS_Status result = BOS_OK; 
-	
+	BOS_Status result = BOS_OK;
+
 	/* Save params base - BOS response & BOS trace */
 	EE_WriteVariable(VirtAddVarTab[_EE_ParamsBase], ((uint16_t)BOS.trace<<8) | (uint16_t)BOS.response);
-		
+
 	/* Save Button debounce */
 	EE_WriteVariable(VirtAddVarTab[_EE_ParamsDebounce], BOS.buttons.debounce);
 
@@ -1832,27 +1832,27 @@ BOS_Status SaveEEparams(void)
 	/* Save CLI baudrate */
 	EE_WriteVariable(VirtAddVarTab[_EE_CLIBaud], (uint16_t)BOS.clibaudrate);
 	EE_WriteVariable(VirtAddVarTab[_EE_CLIBaud+1], (uint16_t)(BOS.clibaudrate>>16));
-	
+
 	/* Save RTC hourformat and daylightsaving */
 	EE_WriteVariable(VirtAddVarTab[_EE_ParamsRTC], ((uint16_t)BOS.hourformat<<8) | (uint16_t)BOS.buttons.minInterClickTime);
-	
+
 	return result;
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Load button definitions and events from EEPROM --- 
+/* --- Load button definitions and events from EEPROM ---
 */
 BOS_Status LoadEEbuttons(void)
 {
-	BOS_Status result = BOS_OK; 
-	uint16_t temp16 = 0, status1 = 0; 
+	BOS_Status result = BOS_OK;
+	uint16_t temp16 = 0, status1 = 0;
 	uint8_t temp8 = 0;
-	
+
 	for(uint8_t i=0 ; i<=NumOfPorts ; i++)
 	{
 		status1 = EE_ReadVariable(VirtAddVarTab[_EE_ButtonBase+4*(i)], &temp16);
-		
+
 		if(!status1)																												// This variable exists
 		{
 			temp8 = (uint8_t)(temp16 >> 8);
@@ -1876,22 +1876,22 @@ BOS_Status LoadEEbuttons(void)
 			}
 		}
 	}
-	
+
 	return result;
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Setup DMA streams upon request from another module --- 
+/* --- Setup DMA streams upon request from another module ---
 */
 void SetupDMAStreamsFromMessage(uint8_t direction, uint32_t count, uint32_t timeout, uint8_t src1, uint8_t dst1, uint8_t src2, \
 	uint8_t dst2, uint8_t src3, uint8_t dst3)
 {
 	TimerHandle_t xTimerStream = NULL;
-	
+
 	/* Start DMA streams */
-	if (direction == FORWARD) 
-	{							
+	if (direction == FORWARD)
+	{
 		if (src1 && dst1) {
 			PortPortDMA1_Setup(GetUart(src1), GetUart(dst1), 1); DMAStream1total = count;
 			/* Create a timeout timer */
@@ -1907,8 +1907,8 @@ void SetupDMAStreamsFromMessage(uint8_t direction, uint32_t count, uint32_t time
 			/* Create a timeout timer */
 			xTimerStream = xTimerCreate( "StreamTimer", pdMS_TO_TICKS(timeout), pdFALSE, ( void * ) 3, StreamTimerCallback );
 		}
-	} 
-	else if (direction == BACKWARD) 
+	}
+	else if (direction == BACKWARD)
 	{
 		if (src1 && dst1) {
 			PortPortDMA1_Setup(GetUart(dst1), GetUart(src1), 1); DMAStream1total = count;
@@ -1925,8 +1925,8 @@ void SetupDMAStreamsFromMessage(uint8_t direction, uint32_t count, uint32_t time
 			/* Create a timeout timer */
 			xTimerStream = xTimerCreate( "StreamTimer", pdMS_TO_TICKS(timeout), pdFALSE, ( void * ) 3, StreamTimerCallback );
 		}
-	} 
-	else if (direction == BIDIRECTIONAL) 
+	}
+	else if (direction == BIDIRECTIONAL)
 	{
 		if (src1 && dst1) {
 			PortPortDMA1_Setup(GetUart(src1), GetUart(dst1), 1); DMAStream1total = count;
@@ -1944,74 +1944,74 @@ void SetupDMAStreamsFromMessage(uint8_t direction, uint32_t count, uint32_t time
 
 /*-----------------------------------------------------------*/
 
-/* --- DMA stream timer callback --- 
+/* --- DMA stream timer callback ---
 */
 void StreamTimerCallback( TimerHandle_t xTimerStream )
 {
 	uint32_t tid = 0;
-	
+
 	tid = ( uint32_t ) pvTimerGetTimerID( xTimerStream );
-	
+
 	switch (tid)
 	{
 		case 1 :
 			StopPortPortDMA1();
 			break;
-		
+
 		case 2 :
 			StopPortPortDMA2();
 			break;
-		
+
 		case 3 :
 			StopPortPortDMA3();
 			break;
-		
+
 		case 12 :
 			StopPortPortDMA1();
 			StopPortPortDMA2();
 			break;
-		
+
 		default:
 			break;
-	}	
+	}
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Check for factory reset condition: 
-				- P1 TXD is connected to last port RXD    
+/* --- Check for factory reset condition:
+				- P1 TXD is connected to last port RXD
 */
 uint8_t IsFactoryReset(void)
 {
 	GPIO_InitTypeDef GPIO_InitStruct;
 	uint32_t P1_TX_Port, P1_RX_Port, P_last_TX_Port, P_last_RX_Port;
 	uint16_t P1_TX_Pin, P1_RX_Pin, P_last_TX_Pin, P_last_RX_Pin;
-	
+
 	/* -- Setup GPIOs -- */
-	
+
   /* Enable all GPIO Ports Clocks */
   __GPIOA_CLK_ENABLE();
   __GPIOB_CLK_ENABLE();
   __GPIOC_CLK_ENABLE();
 	__GPIOD_CLK_ENABLE();
-	
+
 	/* Get GPIOs */
 	GetPortGPIOs(P1, &P1_TX_Port, &P1_TX_Pin, &P1_RX_Port, &P1_RX_Pin);
 	GetPortGPIOs(P_LAST, &P_last_TX_Port, &P_last_TX_Pin, &P_last_RX_Port, &P_last_RX_Pin);
-	
+
 	/* TXD of first port */
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Pin = P1_TX_Pin;
 	HAL_GPIO_Init((GPIO_TypeDef *)P1_TX_Port, &GPIO_InitStruct);
-	
+
 	/* RXD of last port */
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-	GPIO_InitStruct.Pull = GPIO_PULLDOWN;	
+	GPIO_InitStruct.Pull = GPIO_PULLDOWN;
 	GPIO_InitStruct.Pin = P_last_RX_Pin;
-	HAL_GPIO_Init((GPIO_TypeDef *)P_last_RX_Port, &GPIO_InitStruct);	
+	HAL_GPIO_Init((GPIO_TypeDef *)P_last_RX_Port, &GPIO_InitStruct);
 
-	
+
 	/* Check for factory reset conditions */
 	HAL_GPIO_WritePin((GPIO_TypeDef *)P1_TX_Port,P1_TX_Pin,GPIO_PIN_RESET);
 	Delay_ms_no_rtos(5);
@@ -2026,12 +2026,12 @@ uint8_t IsFactoryReset(void)
 
 	/* Clear flag for formated EEPROM if it was already set */
 	/* Flag address (STM32F09x) - Last 4 words of SRAM */
-	*((unsigned long *)0x20007FF0) = 0xFFFFFFFF; 
-	
+	*((unsigned long *)0x20007FF0) = 0xFFFFFFFF;
+
 	return 0;
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
 /* --- Check if booting into lower CLI baudrate:
 				- Connect P1 TXD and P2 RXD to boot CLI at 115200
@@ -2041,33 +2041,33 @@ uint8_t IsLowerCLIbaud(void)
 	GPIO_InitTypeDef GPIO_InitStruct;
 	uint32_t P1_TX_Port, P1_RX_Port, P2_TX_Port, P2_RX_Port;
 	uint16_t P1_TX_Pin, P1_RX_Pin, P2_TX_Pin, P2_RX_Pin;
-	
+
 	/* -- Setup GPIOs -- */
-	
+
 	/* Get GPIOs */
 	GetPortGPIOs(P1, &P1_TX_Port, &P1_TX_Pin, &P1_RX_Port, &P1_RX_Pin);
 	GetPortGPIOs(P2, &P2_TX_Port, &P2_TX_Pin, &P2_RX_Port, &P2_RX_Pin);
-	
+
 	/* P1 TXD */
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Pin = P1_TX_Pin;
 	HAL_GPIO_Init((GPIO_TypeDef *)P1_TX_Port, &GPIO_InitStruct);
-	
+
 	/* P2 RXD */
 	GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-	GPIO_InitStruct.Pull = GPIO_PULLDOWN;	
+	GPIO_InitStruct.Pull = GPIO_PULLDOWN;
 	GPIO_InitStruct.Pin = P2_RX_Pin;
-	HAL_GPIO_Init((GPIO_TypeDef *)P2_RX_Port, &GPIO_InitStruct);	
-	
+	HAL_GPIO_Init((GPIO_TypeDef *)P2_RX_Port, &GPIO_InitStruct);
+
 	/* Check for lower CLI baudrate conditions */
 	HAL_GPIO_WritePin((GPIO_TypeDef *)P1_TX_Port,P1_TX_Pin,GPIO_PIN_RESET);
-	Delay_ms_no_rtos(5);		
+	Delay_ms_no_rtos(5);
 	if (HAL_GPIO_ReadPin((GPIO_TypeDef *)P2_RX_Port,P2_RX_Pin) == RESET)
 	{
 		HAL_GPIO_WritePin((GPIO_TypeDef *)P1_TX_Port,P1_TX_Pin,GPIO_PIN_SET);
-		Delay_ms_no_rtos(5);		
-		if (HAL_GPIO_ReadPin((GPIO_TypeDef *)P2_RX_Port,P2_RX_Pin) == SET) 
+		Delay_ms_no_rtos(5);
+		if (HAL_GPIO_ReadPin((GPIO_TypeDef *)P2_RX_Port,P2_RX_Pin) == SET)
 		{
 			return 1;
 		}
@@ -2076,7 +2076,7 @@ uint8_t IsLowerCLIbaud(void)
 	return 0;
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
 /* --- Format emulated EEPROM for a factory reset
 */
@@ -2090,26 +2090,26 @@ void EE_FormatForFactoryReset(void)
 	}
 	else
 	{
-		if (EE_Format() == HAL_OK) 
+		if (EE_Format() == HAL_OK)
 		{
 			/* Set flag for formated EEPROM */
-			*((unsigned long *)0x20007FF0) = 0xBEEFDEAD; 
+			*((unsigned long *)0x20007FF0) = 0xBEEFDEAD;
 		}
 	}
-	
+
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Broadcast a received message to all connected modules 
+/* --- Broadcast a received message to all connected modules
 */
 BOS_Status BroadcastReceivedMessage(uint8_t dstType, uint8_t incomingPort)
 {
 	BOS_Status result = BOS_OK;
 	uint8_t length = 0, src = 0; uint16_t code = 0;
-	
+
 	/* Broadcast ID is already there. Don't add a new one */
-	
+
 	/* Message length */
 	length = messageLength[incomingPort-1];
 	/* Message source */
@@ -2121,34 +2121,34 @@ BOS_Status BroadcastReceivedMessage(uint8_t dstType, uint8_t incomingPort)
 
 	/* Get broadcast routes */
 	FindBroadcastRoutes(src);
-	
+
 	/* Send to all my broadcast ports */
-	for (uint8_t port=1 ; port<=NumOfPorts ; port++) 
+	for (uint8_t port=1 ; port<=NumOfPorts ; port++)
 	{
-		if ( (bcastRoutes[myID-1] >> (port-1)) & 0x01 ) 		
+		if ( (bcastRoutes[myID-1] >> (port-1)) & 0x01 )
 		{
 			/* Transmit the message from this port */
 			if (dstType == BOS_BROADCAST)
 				SendMessageFromPort(port, src, BOS_BROADCAST, code, length-5);
 			else if (dstType == BOS_MULTICAST)
 				SendMessageFromPort(port, src, BOS_MULTICAST, code, length-5);
-		}	
+		}
 	}
 
 	/* Reset messageParams buffer */
 	memset( messageParams, 0, length-5 );
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Broadcast a message to all connected modules 
+/* --- Broadcast a message to all connected modules
 */
 BOS_Status BroadcastMessage(uint8_t src, uint8_t dstGroup, uint16_t code, uint16_t numberOfParams)
 {
 	uint8_t length = 0, i = 0, groupMembers = 0;
-	
+
 	/* 1. Add group members if it's a multicast */
 	if (dstGroup < BOS_BROADCAST)
 	{
@@ -2177,32 +2177,32 @@ BOS_Status BroadcastMessage(uint8_t src, uint8_t dstGroup, uint16_t code, uint16
 		messageParams[numberOfParams+groupMembers+1] = ++bcastID;
 	else if (dstGroup < BOS_BROADCAST)																																		// Multicast
 		return BOS_ERR_MSG_DOES_NOT_FIT;
-	
+
 	/* Calculate message length */
 	if (dstGroup == BOS_BROADCAST)
 		length = numberOfParams + 1 + 5;
 	else
 		length = numberOfParams + (groupMembers + 1) + 1 + 5;
-	
+
 	/* Get broadcast routes */
 	FindBroadcastRoutes(src);
-	
+
 	/* Send to all my broadcast ports */
-	for (uint8_t port=1 ; port<=NumOfPorts ; port++) 
+	for (uint8_t port=1 ; port<=NumOfPorts ; port++)
 	{
-		if ( (bcastRoutes[myID-1] >> (port-1)) & 0x01 ) 		
+		if ( (bcastRoutes[myID-1] >> (port-1)) & 0x01 )
 		{
 			/* Transmit the message from this port */
 			if (dstGroup == BOS_BROADCAST)
 				SendMessageFromPort(port, src, BOS_BROADCAST, code, length-5);
 			else
 				SendMessageFromPort(port, src, BOS_MULTICAST, code, length-5);
-		}	
+		}
 	}
 
 	/* Reset messageParams buffer */
 	memset( messageParams, 0, numberOfParams+1 );
-	
+
 	return BOS_OK;
 }
 
@@ -2212,146 +2212,146 @@ BOS_Status BroadcastMessage(uint8_t src, uint8_t dstGroup, uint16_t code, uint16
 */
 void CheckAttachedButtons(void)
 {
-	uint32_t TX_Port, RX_Port; 
+	uint32_t TX_Port, RX_Port;
 	uint16_t TX_Pin, RX_Pin;
 	uint8_t connected = GPIO_PIN_RESET, state = 0;
 	static uint8_t clicked;
-	
+
 	for(uint8_t i=1 ; i<=NumOfPorts ; i++)
 	{
 		if (button[i].type)			// Only check defined butons
 		{
 			/* 1. Reset button state */
-			if (delayButtonStateReset == false)	button[i].state = NONE;		
+			if (delayButtonStateReset == false)	button[i].state = NONE;
 
 			/* 2. Get button GPIOs */
 			GetPortGPIOs(i, &TX_Port, &TX_Pin, &RX_Port, &RX_Pin);
-			
+
 			/* 3. Check if port pins are connected */
 			HAL_GPIO_WritePin((GPIO_TypeDef *)TX_Port, TX_Pin, GPIO_PIN_RESET); Delay_us(10);
-			if (HAL_GPIO_ReadPin((GPIO_TypeDef *)RX_Port, RX_Pin) == GPIO_PIN_RESET) 
+			if (HAL_GPIO_ReadPin((GPIO_TypeDef *)RX_Port, RX_Pin) == GPIO_PIN_RESET)
 			{
 				HAL_GPIO_WritePin((GPIO_TypeDef *)TX_Port, TX_Pin, GPIO_PIN_SET); Delay_us(10);
-				connected = HAL_GPIO_ReadPin((GPIO_TypeDef *)RX_Port, RX_Pin); 
-			}		
+				connected = HAL_GPIO_ReadPin((GPIO_TypeDef *)RX_Port, RX_Pin);
+			}
 			HAL_GPIO_WritePin((GPIO_TypeDef *)TX_Port, TX_Pin, GPIO_PIN_RESET);
-			
+
 			/* 4. Determine button state based on port reading and button type */
 			switch (button[i].type)
       {
       	case MOMENTARY_NO:
-					if (connected == GPIO_PIN_SET)	
+					if (connected == GPIO_PIN_SET)
 						state = CLOSED;
 					else if (connected == GPIO_PIN_RESET)
-						state = OPEN;			
+						state = OPEN;
       		break;
-				
+
       	case MOMENTARY_NC:
-					if (connected == GPIO_PIN_SET)	
+					if (connected == GPIO_PIN_SET)
 						state = CLOSED;
-					else if (connected == GPIO_PIN_RESET) 
-						state = OPEN;	
+					else if (connected == GPIO_PIN_RESET)
+						state = OPEN;
       		break;
-				
+
       	case ONOFF_NO:
-					if (connected == GPIO_PIN_SET)	
+					if (connected == GPIO_PIN_SET)
 						state = ON;
-					else if (connected == GPIO_PIN_RESET) 
+					else if (connected == GPIO_PIN_RESET)
 						state = OFF;
       		break;
-				
+
       	case ONOFF_NC:
-					if (connected == GPIO_PIN_SET)	
+					if (connected == GPIO_PIN_SET)
 						state = OFF;
-					else if (connected == GPIO_PIN_RESET) 
+					else if (connected == GPIO_PIN_RESET)
 						state = ON;
       		break;
-				
+
       	default:
       		break;
       }
-			
-			/* 5. Debounce this state and update button struct if needed */		
-			
+
+			/* 5. Debounce this state and update button struct if needed */
+
 			/* 5.A. Possible change of state 1: OPEN > CLOSED or OFF >> ON */
-			if (state == CLOSED || state == ON)												
+			if (state == CLOSED || state == ON)
 			{
-				if (pressCounter[i] < 0xFFFF)	
+				if (pressCounter[i] < 0xFFFF)
 					++pressCounter[i];																			// Advance the debounce counter
-				else	
-					pressCounter[i] = 0;																		// Reset debounce counter					
+				else
+					pressCounter[i] = 0;																		// Reset debounce counter
 			}
-			
+
 			/* 5.B. Possible change of state 2: CLOSED > OPEN or ON >> OFF */
-			if (state == OPEN || state == OFF)												
+			if (state == OPEN || state == OFF)
 			{
 				if (releaseCounter[i] < 0xFFFF)
 					++releaseCounter[i];																		// Advance the debounce counter
-				else	
-					releaseCounter[i] = 0;																	// Reset debounce counter		
-				
-				if (clicked == 2 && dblCounter[i] <= BOS.buttons.maxInterClickTime)				// Advance the inter-click counter		
-					++dblCounter[i];			
+				else
+					releaseCounter[i] = 0;																	// Reset debounce counter
+
+				if (clicked == 2 && dblCounter[i] <= BOS.buttons.maxInterClickTime)				// Advance the inter-click counter
+					++dblCounter[i];
 				else if (dblCounter[i] > BOS.buttons.maxInterClickTime)	{
 					clicked = 0;
 					dblCounter[i] = 0;																			// Reset the inter-click counter
-				}					
+				}
 			}
-			
+
 			/* Analyze state */
-			
+
 			/* 5.C. On press: Record a click if pressed less than 1 second */
-			if (pressCounter[i] < BOS.buttons.debounce) 									
+			if (pressCounter[i] < BOS.buttons.debounce)
 			{
 				// This is noise. Ignore it
-			} 
-			else 
+			}
+			else
 			{
 				if (pressCounter[i] == BOS.buttons.debounce)
 				{
 					button[i].state = PRESSED;															// Record a PRESSED event. This event is always reset on next tick.
 					++pressCounter[i];
 				}
-				
+
 				if (releaseCounter[i] > BOS.buttons.debounce)							// Reset releaseCounter if needed - to avoid masking pressCounter on NO switches
-					releaseCounter[i] = 0;					
-				
-				if (pressCounter[i] > BOS.buttons.singleClickTime && pressCounter[i] < 500)	
+					releaseCounter[i] = 0;
+
+				if (pressCounter[i] > BOS.buttons.singleClickTime && pressCounter[i] < 500)
 				{
 					if (clicked == 0)
-						clicked = 1;																					// Record a possible single click 
+						clicked = 1;																					// Record a possible single click
 					else if (clicked == 2) {
 						if (dblCounter[i] > BOS.buttons.minInterClickTime && dblCounter[i] < BOS.buttons.maxInterClickTime) {
-							clicked = 3;																				// Record a possible double click 
+							clicked = 3;																				// Record a possible double click
 							dblCounter[i] = 0;																	// Reset the inter-click counter
 						}
-					}						
-				}								
-				else if (pressCounter[i] >= 500 && pressCounter[i] < 0xFFFF)	
+					}
+				}
+				else if (pressCounter[i] >= 500 && pressCounter[i] < 0xFFFF)
 				{
 					if (clicked)	clicked = 0;															// Cannot be a click
 					// Process PRESSED_FOR_X_SEC events
 					CheckForTimedButtonPress(i);
-				}	
+				}
 			}
-			
+
 			/* 5.D. On release: Record a click if pressed less than 1 second */
-			if (releaseCounter[i] < BOS.buttons.debounce) 							
+			if (releaseCounter[i] < BOS.buttons.debounce)
 			{
 				// This is noise. Ignore it
-			} 	
-			else 
+			}
+			else
 			{
 				if (releaseCounter[i] == BOS.buttons.debounce)
 				{
 					button[i].state = RELEASED;															// Record a RELEASED event. This event is always reset on next tick.
 					++releaseCounter[i];
 				}
-				
+
 				if (pressCounter[i] > BOS.buttons.debounce)								// Reset pressCounter if needed - to avoid masking releaseCounter on NC switches
-					pressCounter[i] = 0;				
-				
-				if (releaseCounter[i] > BOS.buttons.singleClickTime && releaseCounter[i] < 500)	
+					pressCounter[i] = 0;
+
+				if (releaseCounter[i] > BOS.buttons.singleClickTime && releaseCounter[i] < 500)
 				{
 					if (clicked == 1)
 					{
@@ -2361,16 +2361,16 @@ void CheckAttachedButtons(void)
 					else if (clicked == 3)
 					{
 						button[i].state = DBL_CLICKED;												// Record a double button click event
-						clicked = 0;																					// Prepare for a single click					
+						clicked = 0;																					// Prepare for a single click
 					}
-				}					
-				else if (releaseCounter[i] >= 500 && releaseCounter[i] < 0xFFFF)	
+				}
+				else if (releaseCounter[i] >= 500 && releaseCounter[i] < 0xFFFF)
 				{
 					// Process RELEASED_FOR_Y_SEC events
 					CheckForTimedButtonRelease(i);
-				}	
-			}	
-			
+				}
+			}
+
 			/* 6. Run button callbacks if needed */
 			switch (button[i].state)
       {
@@ -2378,83 +2378,83 @@ void CheckAttachedButtons(void)
 					buttonPressedCallback(i);
 					button[i].state = NONE;
       		break;
-				
+
       	case RELEASED :
 					buttonReleasedCallback(i);
 					button[i].state = NONE;
       		break;
-				
+
       	case CLICKED :
-					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_CLICKED)) 
+					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_CLICKED))
 					{
 						delayButtonStateReset = true;
 						buttonClickedCallback(i);
 					}
       		break;
-				
-      	case DBL_CLICKED :				
-					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_DBL_CLICKED)) 
+
+      	case DBL_CLICKED :
+					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_DBL_CLICKED))
 					{
 						delayButtonStateReset = true;
 						buttonDblClickedCallback(i);
 					}
       		break;
-					
-      	case PRESSED_FOR_X1_SEC :		
-					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_PRESSED_FOR_X1_SEC)) 
-					{				
+
+      	case PRESSED_FOR_X1_SEC :
+					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_PRESSED_FOR_X1_SEC))
+					{
 						delayButtonStateReset = true;
 						buttonPressedForXCallback(i, PRESSED_FOR_X1_SEC-8);
 					}
 					break;
 				case PRESSED_FOR_X2_SEC :
-					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_PRESSED_FOR_X2_SEC)) 
+					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_PRESSED_FOR_X2_SEC))
 					{
 						delayButtonStateReset = true;
 						buttonPressedForXCallback(i, PRESSED_FOR_X2_SEC-8);
 					}
 					break;
 				case PRESSED_FOR_X3_SEC :
-					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_PRESSED_FOR_X3_SEC)) 
+					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_PRESSED_FOR_X3_SEC))
 					{
 						delayButtonStateReset = true;
 						buttonPressedForXCallback(i, PRESSED_FOR_X3_SEC-8);
 					}
 					break;
-				
-      	case RELEASED_FOR_Y1_SEC :	
-					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_RELEASED_FOR_Y1_SEC)) 
+
+      	case RELEASED_FOR_Y1_SEC :
+					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_RELEASED_FOR_Y1_SEC))
 					{
 						delayButtonStateReset = true;
 						buttonReleasedForYCallback(i, RELEASED_FOR_Y1_SEC-11);
 					}
-					break;		
-					
+					break;
+
 				case RELEASED_FOR_Y2_SEC :
-					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_RELEASED_FOR_Y2_SEC)) 
-					{	
+					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_RELEASED_FOR_Y2_SEC))
+					{
 						delayButtonStateReset = true;
 						buttonReleasedForYCallback(i, RELEASED_FOR_Y2_SEC-11);
 					}
-					break;			
-					
+					break;
+
 				case RELEASED_FOR_Y3_SEC :
-					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_RELEASED_FOR_Y3_SEC)) 
-					{	
+					if (!delayButtonStateReset && (button[i].events & BUTTON_EVENT_RELEASED_FOR_Y3_SEC))
+					{
 						delayButtonStateReset = true;
 						buttonReleasedForYCallback(i, RELEASED_FOR_Y3_SEC-11);
 					}
 					break;
-				
+
       	default:
       		break;
-      }	
+      }
 		}					// Done checking this button
 	}						// Done checking all buttons
-	
+
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
 /* --- Check for timed press button events
 */
@@ -2462,27 +2462,27 @@ BOS_Status CheckForTimedButtonPress(uint8_t port)
 {
 	BOS_Status result = BOS_OK;
 	uint32_t t1 = button[port].pressedX1Sec, t2 = button[port].pressedX2Sec, t3 = button[port].pressedX3Sec;
-	
+
 	/* Convert to ms */
 	t1 *= 1000; t2 *= 1000; t3 *= 1000;
-	
-	if (pressCounter[port] == t1)	
-	{	
+
+	if (pressCounter[port] == t1)
+	{
 		button[port].state = PRESSED_FOR_X1_SEC;
 	}
-	else if (pressCounter[port] == t2)	
-	{	
+	else if (pressCounter[port] == t2)
+	{
 		button[port].state = PRESSED_FOR_X2_SEC;
-	}		
-	else if (pressCounter[port] == t3)	
-	{	
+	}
+	else if (pressCounter[port] == t3)
+	{
 		button[port].state = PRESSED_FOR_X2_SEC;
-	}	
+	}
 
-	return result;	
+	return result;
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
 /* --- Check for timed release button events
 */
@@ -2493,24 +2493,24 @@ BOS_Status CheckForTimedButtonRelease(uint8_t port)
 
 	/* Convert to ms */
 	t1 *= 1000; t2 *= 1000; t3 *= 1000;
-	
-	if (releaseCounter[port] == t1)	
-	{	
+
+	if (releaseCounter[port] == t1)
+	{
 		button[port].state = RELEASED_FOR_Y1_SEC;
 	}
-	else if (releaseCounter[port] == t2)	
-	{	
+	else if (releaseCounter[port] == t2)
+	{
 		button[port].state = RELEASED_FOR_Y2_SEC;
-	}		
-	else if (releaseCounter[port] == t3)	
-	{	
+	}
+	else if (releaseCounter[port] == t3)
+	{
 		button[port].state = RELEASED_FOR_Y2_SEC;
-	}	
+	}
 
-	return result;	
+	return result;
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
 /* --- Reset state of attached buttons to avoid recurring callbacks
 */
@@ -2523,159 +2523,159 @@ void ResetAttachedButtonStates(uint8_t *deferReset)
 			if(button[i].state != NONE)
 				button[i].state = NONE;
 		}
-	}	
+	}
 	//*deferReset = 0;
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
 /* --- Get GPIO pins and ports of this array port
 */
 BOS_Status GetPortGPIOs(uint8_t port, uint32_t *TX_Port, uint16_t *TX_Pin, uint32_t *RX_Port, uint16_t *RX_Pin)
 {
 	BOS_Status result = BOS_OK;
-	
+
 	/* Get port UART */
 	UART_HandleTypeDef* huart = GetUart(port);
-	
-	if (huart == &huart1) 
-	{	
-#ifdef _Usart1		
+
+	if (huart == &huart1)
+	{
+#ifdef _Usart1
 		*TX_Port = (uint32_t)USART1_TX_PORT;
 		*TX_Pin = USART1_TX_PIN;
 		*RX_Port = (uint32_t)USART1_RX_PORT;
 		*RX_Pin = USART1_RX_PIN;
 #endif
-	} 
-#ifdef _Usart2	
-	else if (huart == &huart2) 
-	{	
+	}
+#ifdef _Usart2
+	else if (huart == &huart2)
+	{
 		*TX_Port = (uint32_t)USART2_TX_PORT;
 		*TX_Pin = USART2_TX_PIN;
 		*RX_Port = (uint32_t)USART2_RX_PORT;
 		*RX_Pin = USART2_RX_PIN;
-	} 
+	}
 #endif
-#ifdef _Usart3	
-	else if (huart == &huart3) 
-	{	
+#ifdef _Usart3
+	else if (huart == &huart3)
+	{
 		*TX_Port = (uint32_t)USART3_TX_PORT;
 		*TX_Pin = USART3_TX_PIN;
 		*RX_Port = (uint32_t)USART3_RX_PORT;
 		*RX_Pin = USART3_RX_PIN;
-	} 
+	}
 #endif
-#ifdef _Usart4	
-	else if (huart == &huart4) 
-	{	
+#ifdef _Usart4
+	else if (huart == &huart4)
+	{
 		*TX_Port = (uint32_t)USART4_TX_PORT;
 		*TX_Pin = USART4_TX_PIN;
 		*RX_Port = (uint32_t)USART4_RX_PORT;
 		*RX_Pin = USART4_RX_PIN;
-	} 
+	}
 #endif
-#ifdef _Usart5	
-	else if (huart == &huart5) 
-	{	
+#ifdef _Usart5
+	else if (huart == &huart5)
+	{
 		*TX_Port = (uint32_t)USART5_TX_PORT;
 		*TX_Pin = USART5_TX_PIN;
 		*RX_Port = (uint32_t)USART5_RX_PORT;
 		*RX_Pin = USART5_RX_PIN;
-	} 
+	}
 #endif
-#ifdef _Usart6	
-	else if (huart == &huart6) 
-	{	
+#ifdef _Usart6
+	else if (huart == &huart6)
+	{
 		*TX_Port = (uint32_t)USART6_TX_PORT;
 		*TX_Pin = USART6_TX_PIN;
 		*RX_Port = (uint32_t)USART6_RX_PORT;
 		*RX_Pin = USART6_RX_PIN;
-	} 
+	}
 #endif
 #ifdef _Usart7
-	else if (huart == &huart7) 
-	{		
+	else if (huart == &huart7)
+	{
 		*TX_Port = (uint32_t)USART7_TX_PORT;
 		*TX_Pin = USART7_TX_PIN;
 		*RX_Port = (uint32_t)USART7_RX_PORT;
 		*RX_Pin = USART7_RX_PIN;
-	} 
+	}
 #endif
-#ifdef _Usart8	
-	else if (huart == &huart8) 
-	{	
+#ifdef _Usart8
+	else if (huart == &huart8)
+	{
 		*TX_Port = (uint32_t)USART8_TX_PORT;
 		*TX_Pin = USART8_TX_PIN;
 		*RX_Port = (uint32_t)USART8_RX_PORT;
 		*RX_Pin = USART8_RX_PIN;
-	} 
+	}
 #endif
 	else
-		result = BOS_ERROR;	
-	
-	return result;	
+		result = BOS_ERROR;
+
+	return result;
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Button press callback. DO NOT MODIFY THIS CALLBACK. 
+/* --- Button press callback. DO NOT MODIFY THIS CALLBACK.
 		This function is declared as __weak to be overwritten by other implementations in user file.
 */
 __weak void buttonPressedCallback(uint8_t port)
-{	
+{
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Button release callback. DO NOT MODIFY THIS CALLBACK. 
+/* --- Button release callback. DO NOT MODIFY THIS CALLBACK.
 		This function is declared as __weak to be overwritten by other implementations in user file.
 */
 __weak void buttonReleasedCallback(uint8_t port)
-{	
+{
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Button single click callback. DO NOT MODIFY THIS CALLBACK. 
+/* --- Button single click callback. DO NOT MODIFY THIS CALLBACK.
 		This function is declared as __weak to be overwritten by other implementations in user file.
 */
 __weak void buttonClickedCallback(uint8_t port)
-{	
+{
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Button double click callback. DO NOT MODIFY THIS CALLBACK. 
+/* --- Button double click callback. DO NOT MODIFY THIS CALLBACK.
 		This function is declared as __weak to be overwritten by other implementations in user file.
 */
 __weak void buttonDblClickedCallback(uint8_t port)
-{	
+{
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Button pressed_for_x callbacks. DO NOT MODIFY THIS CALLBACK. 
+/* --- Button pressed_for_x callbacks. DO NOT MODIFY THIS CALLBACK.
 		This function is declared as __weak to be overwritten by other implementations in user file.
 */
 __weak void buttonPressedForXCallback(uint8_t port, uint8_t eventType)
-{	
+{
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Button released_for_y callbacks. DO NOT MODIFY THIS CALLBACK. 
+/* --- Button released_for_y callbacks. DO NOT MODIFY THIS CALLBACK.
 		This function is declared as __weak to be overwritten by other implementations in user file.
 */
 __weak void buttonReleasedForYCallback(uint8_t port, uint8_t eventType)
-{	
+{
 }
 
-/*-----------------------------------------------------------*/	
+/*-----------------------------------------------------------*/
 
-/* --- Read a value from a remote module. 
+/* --- Read a value from a remote module.
 			 This API returns a void pointer to the remote value. Cast this pointer to match the appropriate format.
 			 If the returned value is NULL, then remote variable does not exist or remote module is not responsive.
-					module: Remote module ID. 
+					module: Remote module ID.
 					localAddress: Local memory address (RAM or Flash). Use the 1 to MAX_BOS_VARS to write BOS variables.
 					remoteAddress: Remote memory address (RAM or Flash). Use the 1 to MAX_BOS_VARS to write BOS variables.
 					format: Local format sent to remote module (FMT_UINT8, FMT_INT8, FMT_UINT16, FMT_INT16, FMT_UINT32, FMT_INT32, FMT_FLOAT, FMT_BOOL)
@@ -2685,99 +2685,99 @@ __weak void buttonReleasedForYCallback(uint8_t port, uint8_t eventType)
 BOS_Status WriteToRemote(uint8_t module, uint32_t localAddress, uint32_t remoteAddress, varFormat_t format, uint32_t timeout, uint8_t force)
 {
 	uint8_t response; uint16_t code;
-	
+
 	/* Check whether response is enabled or disabled */
 	response = BOS.response;
 	if (timeout)
 		BOS.response = BOS_RESPONSE_MSG;
 	else
 		BOS.response = BOS_RESPONSE_NONE;
-	
+
 	/* Check if a force write is needed */
 	if (force)
 		code = CODE_write_remote_force;
 	else
 		code = CODE_write_remote;
-	
+
 	/* Writing to a BOS var */
 	if (remoteAddress < FLASH_BASE)
 	{
 		messageParams[0] = remoteAddress;			// Send BOS variable index
 		messageParams[1] = format;						// Send local format
 		/* Send variable value based on local format */
-		switch (format)											
+		switch (format)
 		{
 			case FMT_BOOL:
-			case FMT_UINT8: 
-				messageParams[2] = *(__IO uint8_t *)localAddress; 
+			case FMT_UINT8:
+				messageParams[2] = *(__IO uint8_t *)localAddress;
 				SendMessageToModule(module, CODE_write_remote, 3); break;
-			case FMT_INT8: 
-				messageParams[2] = *(__IO int8_t *)localAddress; 
+			case FMT_INT8:
+				messageParams[2] = *(__IO int8_t *)localAddress;
 				SendMessageToModule(module, CODE_write_remote, 3); break;
-			case FMT_UINT16: 
-				messageParams[2] = (uint8_t)((*(__IO uint16_t *)localAddress)>>0); messageParams[3] = (uint8_t)((*(__IO uint16_t *)localAddress)>>8); 
+			case FMT_UINT16:
+				messageParams[2] = (uint8_t)((*(__IO uint16_t *)localAddress)>>0); messageParams[3] = (uint8_t)((*(__IO uint16_t *)localAddress)>>8);
 				SendMessageToModule(module, CODE_write_remote, 4); break;
-			case FMT_INT16: 
-				messageParams[2] = (uint8_t)((*(__IO int16_t *)localAddress)>>0); messageParams[3] = (uint8_t)((*(__IO int16_t *)localAddress)>>8); 
+			case FMT_INT16:
+				messageParams[2] = (uint8_t)((*(__IO int16_t *)localAddress)>>0); messageParams[3] = (uint8_t)((*(__IO int16_t *)localAddress)>>8);
 				SendMessageToModule(module, CODE_write_remote, 4); break;
-			case FMT_UINT32: 
-				messageParams[2] = (uint8_t)((*(__IO uint32_t *)localAddress)>>0); messageParams[3] = (uint8_t)((*(__IO uint32_t *)localAddress)>>8); 
-				messageParams[4] = (uint8_t)((*(__IO uint32_t *)localAddress)>>16); messageParams[5] = (uint8_t)((*(__IO uint32_t *)localAddress)>>24); 
+			case FMT_UINT32:
+				messageParams[2] = (uint8_t)((*(__IO uint32_t *)localAddress)>>0); messageParams[3] = (uint8_t)((*(__IO uint32_t *)localAddress)>>8);
+				messageParams[4] = (uint8_t)((*(__IO uint32_t *)localAddress)>>16); messageParams[5] = (uint8_t)((*(__IO uint32_t *)localAddress)>>24);
 				SendMessageToModule(module, CODE_write_remote, 6); break;
-			case FMT_INT32: 
-				messageParams[2] = (uint8_t)((*(__IO int32_t *)localAddress)>>0); messageParams[3] = (uint8_t)((*(__IO int32_t *)localAddress)>>8); 
+			case FMT_INT32:
+				messageParams[2] = (uint8_t)((*(__IO int32_t *)localAddress)>>0); messageParams[3] = (uint8_t)((*(__IO int32_t *)localAddress)>>8);
 				messageParams[4] = (uint8_t)((*(__IO int32_t *)localAddress)>>16); messageParams[5] = (uint8_t)((*(__IO int32_t *)localAddress)>>24);
-				SendMessageToModule(module, CODE_write_remote, 6); break;										
+				SendMessageToModule(module, CODE_write_remote, 6); break;
 			case FMT_FLOAT:
-				messageParams[2] = *(__IO uint8_t *)(localAddress+0); messageParams[3] = *(__IO uint8_t *)(localAddress+1); messageParams[4] = *(__IO uint8_t *)(localAddress+2); 
-				messageParams[5] = *(__IO uint8_t *)(localAddress+3); messageParams[6] = *(__IO uint8_t *)(localAddress+4); messageParams[7] = *(__IO uint8_t *)(localAddress+5); 
-				messageParams[8] = *(__IO uint8_t *)(localAddress+6); messageParams[9] = *(__IO uint8_t *)(localAddress+7); 			// You cannot bitwise floats	
-				SendMessageToModule(module, CODE_write_remote, 10); break;			
+				messageParams[2] = *(__IO uint8_t *)(localAddress+0); messageParams[3] = *(__IO uint8_t *)(localAddress+1); messageParams[4] = *(__IO uint8_t *)(localAddress+2);
+				messageParams[5] = *(__IO uint8_t *)(localAddress+3); messageParams[6] = *(__IO uint8_t *)(localAddress+4); messageParams[7] = *(__IO uint8_t *)(localAddress+5);
+				messageParams[8] = *(__IO uint8_t *)(localAddress+6); messageParams[9] = *(__IO uint8_t *)(localAddress+7); 			// You cannot bitwise floats
+				SendMessageToModule(module, CODE_write_remote, 10); break;
 			default:
 				break;
-		}					
+		}
 	}
 	/* Writing to a memory address */
 	else
 	{
-		messageParams[0] = 0;													
+		messageParams[0] = 0;
 		messageParams[1] = format;						// Local format
 		messageParams[2] = (uint8_t)(remoteAddress>>24); messageParams[3] = (uint8_t)(remoteAddress>>16); // Remote address
-		messageParams[4] = (uint8_t)(remoteAddress>>8); messageParams[5] = (uint8_t)remoteAddress; 				
+		messageParams[4] = (uint8_t)(remoteAddress>>8); messageParams[5] = (uint8_t)remoteAddress;
 		/* Send variable value based on local format */
-		switch (format)											
+		switch (format)
 		{
 			case FMT_BOOL:
-			case FMT_UINT8: 
-				messageParams[6] = *(__IO uint8_t *)localAddress; 
+			case FMT_UINT8:
+				messageParams[6] = *(__IO uint8_t *)localAddress;
 				SendMessageToModule(module, code, 7); break;
-			case FMT_INT8: 
-				messageParams[6] = *(__IO int8_t *)localAddress; 
+			case FMT_INT8:
+				messageParams[6] = *(__IO int8_t *)localAddress;
 				SendMessageToModule(module, code, 7); break;
-			case FMT_UINT16: 
-				messageParams[6] = (uint8_t)((*(__IO uint16_t *)localAddress)>>0); messageParams[7] = (uint8_t)((*(__IO uint16_t *)localAddress)>>8); 
+			case FMT_UINT16:
+				messageParams[6] = (uint8_t)((*(__IO uint16_t *)localAddress)>>0); messageParams[7] = (uint8_t)((*(__IO uint16_t *)localAddress)>>8);
 				SendMessageToModule(module, code, 8); break;
-			case FMT_INT16: 
-				messageParams[6] = (uint8_t)((*(__IO int16_t *)localAddress)>>0); messageParams[7] = (uint8_t)((*(__IO int16_t *)localAddress)>>8); 
+			case FMT_INT16:
+				messageParams[6] = (uint8_t)((*(__IO int16_t *)localAddress)>>0); messageParams[7] = (uint8_t)((*(__IO int16_t *)localAddress)>>8);
 				SendMessageToModule(module, code, 8); break;
-			case FMT_UINT32: 
-				messageParams[6] = (uint8_t)((*(__IO uint32_t *)localAddress)>>0); messageParams[7] = (uint8_t)((*(__IO uint32_t *)localAddress)>>8); 
-				messageParams[8] = (uint8_t)((*(__IO uint32_t *)localAddress)>>16); messageParams[9] = (uint8_t)((*(__IO uint32_t *)localAddress)>>24); 
+			case FMT_UINT32:
+				messageParams[6] = (uint8_t)((*(__IO uint32_t *)localAddress)>>0); messageParams[7] = (uint8_t)((*(__IO uint32_t *)localAddress)>>8);
+				messageParams[8] = (uint8_t)((*(__IO uint32_t *)localAddress)>>16); messageParams[9] = (uint8_t)((*(__IO uint32_t *)localAddress)>>24);
 				SendMessageToModule(module, code, 10); break;
-			case FMT_INT32: 
-				messageParams[6] = (uint8_t)((*(__IO int32_t *)localAddress)>>0); messageParams[7] = (uint8_t)((*(__IO int32_t *)localAddress)>>8); 
+			case FMT_INT32:
+				messageParams[6] = (uint8_t)((*(__IO int32_t *)localAddress)>>0); messageParams[7] = (uint8_t)((*(__IO int32_t *)localAddress)>>8);
 				messageParams[8] = (uint8_t)((*(__IO int32_t *)localAddress)>>16); messageParams[9] = (uint8_t)((*(__IO int32_t *)localAddress)>>24);
-				SendMessageToModule(module, code, 10); break;										
+				SendMessageToModule(module, code, 10); break;
 			case FMT_FLOAT:
-				messageParams[6] = *(__IO uint8_t *)(localAddress+0); messageParams[7] = *(__IO uint8_t *)(localAddress+1); messageParams[8] = *(__IO uint8_t *)(localAddress+2); 
-				messageParams[9] = *(__IO uint8_t *)(localAddress+3); messageParams[10] = *(__IO uint8_t *)(localAddress+4); messageParams[11] = *(__IO uint8_t *)(localAddress+5); 
-				messageParams[12] = *(__IO uint8_t *)(localAddress+6); messageParams[13] = *(__IO uint8_t *)(localAddress+7); 			// You cannot bitwise floats	
-				SendMessageToModule(module, code, 14); break;			
+				messageParams[6] = *(__IO uint8_t *)(localAddress+0); messageParams[7] = *(__IO uint8_t *)(localAddress+1); messageParams[8] = *(__IO uint8_t *)(localAddress+2);
+				messageParams[9] = *(__IO uint8_t *)(localAddress+3); messageParams[10] = *(__IO uint8_t *)(localAddress+4); messageParams[11] = *(__IO uint8_t *)(localAddress+5);
+				messageParams[12] = *(__IO uint8_t *)(localAddress+6); messageParams[13] = *(__IO uint8_t *)(localAddress+7); 			// You cannot bitwise floats
+				SendMessageToModule(module, code, 14); break;
 			default:
 				break;
-		}			
+		}
 	}
-	
+
 	/* Restore response settings to default */
 	BOS.response = response;
 
@@ -2785,10 +2785,10 @@ BOS_Status WriteToRemote(uint8_t module, uint32_t localAddress, uint32_t remoteA
 	if (timeout)
 	{
 		uint32_t t0 = HAL_GetTick();
-		while ( (responseStatus != BOS_OK) && ((HAL_GetTick()-t0) < timeout) ) { };	
+		while ( (responseStatus != BOS_OK) && ((HAL_GetTick()-t0) < timeout) ) { };
 		return responseStatus;
 	}
-	
+
 	return BOS_OK;
 }
 
@@ -2800,22 +2800,22 @@ BOS_Status RTC_Init(void)
 {
 	/* RTC clock enable */
   __HAL_RCC_RTC_ENABLE();
-	
-	/* Configure the RTC 
+
+	/* Configure the RTC
 		f_ckspre = f_rtcclk / ((PREDIV_S+1) * (PREDIV_A+1))
 			- f_rtcclk is HSE 8 MHz / 32 = 250 kHz
-			- f_ckspre should be 1 Hz 
+			- f_ckspre should be 1 Hz
 			- PREDIV_A should be as high as possible to minimize power consumption
 					>> Choose PREDIV_A = 124 and PREDIV_S = 1999
 	*/
-	RtcHandle.Instance = RTC; 
+	RtcHandle.Instance = RTC;
   RtcHandle.Init.HourFormat = RTC_HOURFORMAT_24;
   RtcHandle.Init.AsynchPrediv = 124;
   RtcHandle.Init.SynchPrediv = 1999;
   RtcHandle.Init.OutPut = RTC_OUTPUT_DISABLE;
   RtcHandle.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
   RtcHandle.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
-		
+
 	if (HAL_RTC_Init(&RtcHandle) != HAL_OK)	return BOS_ERROR;
 
   /* Check if Data stored in BackUp register1: No Need to reconfigure RTC */
@@ -2839,8 +2839,8 @@ BOS_Status RTC_Init(void)
     }
   }
   /* Clear source Reset Flag */
-  __HAL_RCC_CLEAR_RESET_FLAGS();	
-	
+  __HAL_RCC_CLEAR_RESET_FLAGS();
+
 	return BOS_OK;
 }
 
@@ -2851,10 +2851,10 @@ BOS_Status RTC_Init(void)
 BOS_Status RTC_CalendarConfig(void)
 {
   RTC_DateTypeDef sdatestructure;
-  RTC_TimeTypeDef stimestructure;	
-	uint8_t month, day, year, seconds, minutes, hours; 
+  RTC_TimeTypeDef stimestructure;
+	uint8_t month, day, year, seconds, minutes, hours;
 	char comDate[] = __DATE__, comTime[] = __TIME__;
-	
+
 	/* Get compile date */
   year = atoi(comDate + 9);		// only last 2 digits
   *(comDate + 6) = 0;
@@ -2862,7 +2862,7 @@ BOS_Status RTC_CalendarConfig(void)
   *(comDate + 3) = 0;
   for (uint8_t i = 0; i < 12; i++)
   {
-    if (!strcmp(comDate, monthStringAbreviated[i]))	
+    if (!strcmp(comDate, monthStringAbreviated[i]))
 			month = i + 1;
   }
 
@@ -2872,13 +2872,13 @@ BOS_Status RTC_CalendarConfig(void)
 	minutes = atoi(comTime + 3);
 	*(comDate + 2) = 0;
 	hours = atoi(comTime);
-	
+
   /* Set Date */
   sdatestructure.Year = year;
   sdatestructure.Month = month;
   sdatestructure.Date = day;
   sdatestructure.WeekDay = RTC_WEEKDAY_MONDAY;		// Todo - Calculate weekday later
-  
+
   if(HAL_RTC_SetDate(&RtcHandle,&sdatestructure,RTC_FORMAT_BIN) != HAL_OK)
 		return BOS_ERROR;
 
@@ -2889,13 +2889,13 @@ BOS_Status RTC_CalendarConfig(void)
   stimestructure.TimeFormat = RTC_HOURFORMAT12_AM;	BOS.hourformat = 24;
   stimestructure.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
   stimestructure.StoreOperation = RTC_STOREOPERATION_RESET;
-	
+
   if (HAL_RTC_SetTime(&RtcHandle, &stimestructure, RTC_FORMAT_BIN) != HAL_OK)
 		return BOS_ERROR;
 
   /* Writes a data in a RTC Backup data Register1 */
   HAL_RTCEx_BKUPWrite(&RtcHandle, RTC_BKP_DR1, 0x32F2);
-	
+
 	return BOS_OK;
 }
 
@@ -2903,7 +2903,7 @@ BOS_Status RTC_CalendarConfig(void)
 
 /**
   * @brief  System Clock Configuration
-  *         The system Clock is configured as follow : 
+  *         The system Clock is configured as follow :
   *            System Clock source            = PLL (HSE)
   *            SYSCLK(Hz)                     = 48000000
   *            HCLK(Hz)                       = 48000000
@@ -2943,7 +2943,7 @@ void SystemClock_Config(void)
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
   PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
   HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit);
-	
+
 	__HAL_RCC_PWR_CLK_ENABLE();
   HAL_PWR_EnableBkUpAccess();
 	PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
@@ -2953,23 +2953,23 @@ void SystemClock_Config(void)
   HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 
   HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
-	
+
 
 	__SYSCFG_CLK_ENABLE();
 
   /* SysTick_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
-	
+
 }
 
 /*-----------------------------------------------------------*/
 
 /* -----------------------------------------------------------------------
 	|																APIs	 																 	|
-   ----------------------------------------------------------------------- 
+   -----------------------------------------------------------------------
 */
 
-/* --- BitzOS initialization. 
+/* --- BitzOS initialization.
 */
 void BOS_Init(void)
 {
@@ -2979,33 +2979,33 @@ void BOS_Init(void)
 
 	/* EEPROM Init */
 	EE_Init();
-	
+
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
 	MX_DMA_Init();
 	MX_TIM_USEC_Init();
-	
+
 	/* Check for factory reset */
 	if (IsFactoryReset())
 	{
 		/* Format EEPROM once */
 		EE_FormatForFactoryReset();
-		
+
 		/* Software reset */
 		NVIC_SystemReset();
 	}
-	
+
 	/* Check if booting at lower CLI baudrate */
 	if (IsLowerCLIbaud())
 	{
 		/* Initialize the module */
 		Delay_ms_no_rtos(50);					// Give other modules time to finish factory reset and baudrate check
-		Module_Init();	
-		
+		Module_Init();
+
 		BOS.clibaudrate = CLI_BAUDRATE_1;
 		/* Update all ports to lower baudrate */
-		for (uint8_t port=1 ; port<=NumOfPorts ; port++) 
-		{	
+		for (uint8_t port=1 ; port<=NumOfPorts ; port++)
+		{
 			UpdateBaudrate(port, BOS.clibaudrate);
 		}
 	}
@@ -3013,16 +3013,16 @@ void BOS_Init(void)
 	{
 		/* Initialize the module with default baudrate */
 		Delay_ms_no_rtos(50);					// Give other modules time to finish factory reset and baudrate check
-		Module_Init();				
+		Module_Init();
 	}
-	
+
 	/* Load stored EEPROM variables */
 	LoadEEvars();
-	
+
 /* If no pre-defined topology, initialize ports direction */
-#ifndef _N
+#ifndef __N__
 	UpdateMyPortsDir();
-#endif	
+#endif
 
 	/* Startup indicator sequence */
 	if (myID == 0)		/* Native module */
@@ -3049,10 +3049,10 @@ void vRegisterCLICommands(void)
 {
 	/* Register all BOS CLI commands */
 	FreeRTOS_CLIRegisterCommand( &prvTaskStatsCommandDefinition );
-	FreeRTOS_CLIRegisterCommand( &prvRunTimeStatsCommandDefinition );	
+	FreeRTOS_CLIRegisterCommand( &prvRunTimeStatsCommandDefinition );
 	FreeRTOS_CLIRegisterCommand( &pingCommandDefinition );
 	FreeRTOS_CLIRegisterCommand( &bootloaderUpdateCommandDefinition );
-#ifndef _N
+#ifndef __N__
 	FreeRTOS_CLIRegisterCommand( &exploreCommandDefinition );
 #endif
 	FreeRTOS_CLIRegisterCommand( &resetCommandDefinition );
@@ -3068,22 +3068,22 @@ void vRegisterCLICommands(void)
 	FreeRTOS_CLIRegisterCommand( &defaultCommandDefinition );
 	FreeRTOS_CLIRegisterCommand( &timeCommandDefinition );
 	FreeRTOS_CLIRegisterCommand( &dateCommandDefinition );
-	
-	/* Register module CLI commands */	
+
+	/* Register module CLI commands */
 	RegisterModuleCLICommands();
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Get the UART for a given port. 
+/* --- Get the UART for a given port.
 */
 UART_HandleTypeDef* GetUart(uint8_t port)
 {
 	switch (port)
 	{
 	#ifdef _P1
-		case P1 : 
-			return P1uart;	
+		case P1 :
+			return P1uart;
 	#endif
 	#ifdef _P2
 		case P2 :
@@ -3127,27 +3127,27 @@ UART_HandleTypeDef* GetUart(uint8_t port)
 	#endif
 		default:
 			return 0;
-	}		
+	}
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Send a message to another module 
+/* --- Send a message to another module
 */
 BOS_Status SendMessageToModule(uint8_t dst, uint16_t code, uint16_t numberOfParams)
 {
 	BOS_Status result = BOS_OK;
-	uint8_t port = 0; 
-	
+	uint8_t port = 0;
+
 	/* Singlecast message */
 	if (dst != BOS_BROADCAST)
 	{
 		/* Find best output port for destination module */
-		port = FindRoute(myID, dst); 
-		
+		port = FindRoute(myID, dst);
+
 		/* Transmit the message from this port */
-		SendMessageFromPort(port, myID, dst, code, numberOfParams);	
-		
+		SendMessageFromPort(port, myID, dst, code, numberOfParams);
+
 		/* Reset messageParams buffer */
 		memset( messageParams, 0, numberOfParams );
 	}
@@ -3156,87 +3156,87 @@ BOS_Status SendMessageToModule(uint8_t dst, uint16_t code, uint16_t numberOfPara
 	{
 		BroadcastMessage(myID, BOS_BROADCAST, code, numberOfParams);
 	}
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Send a message to a group of modules. If current module is part of the group it will be exempted 
+/* --- Send a message to a group of modules. If current module is part of the group it will be exempted
 */
 BOS_Status SendMessageToGroup(char* group, uint16_t code, uint16_t numberOfParams)
 {
 	BOS_Status result = BOS_OK;
-	uint8_t i = 0; 
-	
+	uint8_t i = 0;
+
 	/* Search for group alias*/
 
 	for(i=0 ; i<MaxNumOfGroups ; i++)
 	{
 		/* This group exists */
-		if (!strcmp(group, groupAlias[i]))	
+		if (!strcmp(group, groupAlias[i]))
 		{
 			/* Multicast the message to this group */
 			result = BroadcastMessage(myID, i, code, numberOfParams);
-			
+
 			return result;
 		}
-	}	
-	
+	}
+
 	/* This group does not exist */
 	return BOS_ERR_WrongGroup;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Send a message from a specific port 
+/* --- Send a message from a specific port
 */
 BOS_Status SendMessageFromPort(uint8_t port, uint8_t src, uint8_t dst, uint16_t code, uint16_t numberOfParams)
 {
-	BOS_Status result = BOS_OK; 
+	BOS_Status result = BOS_OK;
 	uint8_t length = 0; static uint16_t totalNumberOfParams = 0; static uint16_t ptrShift = 0;
 	char message[MAX_MESSAGE_SIZE] = {0};
-	
+
 	/* Increase the priority of current running task */
 	vTaskPrioritySet( NULL, osPriorityHigh );
-	
+
 	if (!src)	src = myID;
-	
+
 	/* Construct the message */
-	message[0] = dst;						
+	message[0] = dst;
 	message[1] = src;
 	message[3] = (uint8_t) code;
-	message[2] = (uint8_t) (code >> 8);	
-	
+	message[2] = (uint8_t) (code >> 8);
+
 	/* Apply response options */
 	message[2] |= BOS.response;												/* CODE 15th bit for Message response, 14th bit for CLI response */
 
 	/* Apply trace options */
 	message[2] |= (BOS.trace<<4);											/* CODE 13th bit for Message trace */
-	
+
 	/* Copy parameters */
-	if (numberOfParams <= (MAX_MESSAGE_SIZE-5) ) {				
+	if (numberOfParams <= (MAX_MESSAGE_SIZE-5) ) {
 		memcpy((char*)&message[4], (&messageParams[0]+ptrShift), numberOfParams);
 		/* Calculate message length */
 		length = numberOfParams + 5;
 	} else {
 		/* Toggle code MSB (16th bit) to inform receiver about a long message */
-		code |= 0x8000;		
+		code |= 0x8000;
 		totalNumberOfParams = numberOfParams;
 		numberOfParams = MAX_MESSAGE_SIZE-5;
 		/* Break into multiple messages */
 		while (totalNumberOfParams != 0)
-		{		
-			if ( (totalNumberOfParams/numberOfParams) >= 1) 
-			{	
+		{
+			if ( (totalNumberOfParams/numberOfParams) >= 1)
+			{
 				/* Call this function recursively */
 				SendMessageFromPort(port, src, dst, code, numberOfParams);
 				osDelay(10);
 				/* Update remaining number of parameters */
 				totalNumberOfParams -= numberOfParams;
 				ptrShift += numberOfParams;
-			} 
-			else 
+			}
+			else
 			{
 				code &= 0x7FFF;		/* Last message */
 				numberOfParams = totalNumberOfParams;
@@ -3246,45 +3246,45 @@ BOS_Status SendMessageFromPort(uint8_t port, uint8_t src, uint8_t dst, uint16_t 
 				length = numberOfParams + 5;
 			}
 		}
-	}	
-	
+	}
+
 	/* if length is 0xD = 13, append by one zero byte. If it's a broadcast, append before bcastID */
 	if (length == 13) {
 		++length;
-		if (dst == BOS_BROADCAST || dst == BOS_MULTICAST) 
+		if (dst == BOS_BROADCAST || dst == BOS_MULTICAST)
 			message[length-2] = message[length-3];		// Move bcastID to last byte before End of Message
-	}		
-	
+	}
+
 	/* 0x75 End of message */
-	message[length-1] = 0x75;		
-	
+	message[length-1] = 0x75;
+
 	/* Give back the semaphore if needed. */
 	osSemaphoreRelease(PxRxSemaphoreHandle[port]);
-	
+
 	/* Transmit message length byte */
 	GetUart(port)->Instance->TDR = length;
 
 	/* Wait some time */
 	Delay_us(1500);
-	
+
 	/* Transmit the message */
-	writePxMutex(port, message, length, cmd50ms, 20);	
+	writePxMutex(port, message, length, cmd50ms, 20);
 
 	/* Put the priority of current running task back to normal */
 	vTaskPrioritySet( NULL, osPriorityNormal );
-	
+
 	/* In case response is expected */
 	responseStatus = BOS_ERR_NoResponse;
 
 	/* Read this port again */
 	HAL_UART_Receive_IT(GetUart(port), (uint8_t *)&cRxedChar, 1);
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-#ifndef _N
+#ifndef __N__
 /* --- Explore the array and create its topology (executed only by master)
 */
 BOS_Status Explore(void)
@@ -3292,22 +3292,22 @@ BOS_Status Explore(void)
 	BOS_Status result = BOS_OK;
 	uint8_t currentID = 0, lastID = 0, temp1 = 0, temp2 = 0, i = 0, j = 0, p = 0, port = 0;
 	uint16_t temp16 = 0;
-	
+
 	myID = 1; 		/* Master ID */
-	
+
 	/* >>> Step 1 - Reverse master ports and explore adjacent neighbors */
-	
+
 	for (uint8_t port=1 ; port<=NumOfPorts ; port++) {
 		if (port != PcPort)	SwapUartPins(GetUart(port), REVERSED);
 	}
 	ExploreNeighbors(PcPort); indMode = IND_TOPOLOGY;
 
-	
+
 	/* >>> Step 2 - Assign IDs to new modules & update the topology array */
-	
+
 	/* Step 2a - Assign IDs to new modules */
 	currentID = 1;
-	for (port=1 ; port<=NumOfPorts ; port++) 
+	for (port=1 ; port<=NumOfPorts ; port++)
 	{
 		if (neighbors[port-1][0])
 		{
@@ -3316,16 +3316,16 @@ BOS_Status Explore(void)
 			N = currentID;			/* Update number of modules in the array */
 			/* Inform module to change ID */
 			messageParams[0] = 0;		/* change own ID */
-			SendMessageFromPort(port, 0, 0, CODE_module_id, 3);			
+			SendMessageFromPort(port, 0, 0, CODE_module_id, 3);
 			/* Modify neighbors table */
 			neighbors[port-1][0] = ( (uint16_t) currentID << 8 ) + (uint8_t)(neighbors[port-1][0]);
 			osDelay(10);
 		}
 	}
-	
+
 	/* Step 2b - Update master topology array */
-	array[0][0]	= myPN;					
-	for (port=1 ; port<=NumOfPorts ; port++) 
+	array[0][0]	= myPN;
+	for (port=1 ; port<=NumOfPorts ; port++)
 	{
 		if (neighbors[port-1][0])
 		{
@@ -3338,26 +3338,26 @@ BOS_Status Explore(void)
 			array[temp1-1][0]	= neighbors[port-1][1];				/* Neighbor PN */
 			array[temp1-1][temp2] = ( myID << 3 ) | port;		/* Module 1 ID | Module 1 port */
 		}
-	}		
-	
+	}
+
 	/* Step 2c - Ask neighbors to update their topology array */
-	for (i=2 ; i<=currentID ; i++) 
+	for (i=2 ; i<=currentID ; i++)
 	{
 		memcpy(messageParams, array, (size_t) (currentID*(MaxNumOfPorts+1)*2) );
 		SendMessageToModule(i, CODE_topology, (size_t) (currentID*(MaxNumOfPorts+1)*2));
 		osDelay(60);
 	}
-	
-	
+
+
 	/* >>> Step 3 - Ask each new module to explore and repeat */
-	
+
 	while (lastID != currentID)
 	{
 		/* Update lastID */
 		lastID = currentID;
-		
+
 		/* Scan all discovered modules */
-		for (i=2 ; i<=currentID ; i++) 
+		for (i=2 ; i<=currentID ; i++)
 		{
 			/* Step 3a - Ask the module to reverse ports */
 			for (uint8_t p=1 ; p<=MaxNumOfPorts ; p++) {
@@ -3366,20 +3366,20 @@ BOS_Status Explore(void)
 			messageParams[MaxNumOfPorts] = NORMAL;		/* Make sure the inport is not reversed */
 			SendMessageToModule(i, CODE_port_dir, MaxNumOfPorts+1);
 			osDelay(10);
-			
+
 			/* Step 3b - Ask the module to explore adjacent neighbors */
 			SendMessageToModule(i, CODE_explore_adj, 0);
-			osDelay(100);		
-		
+			osDelay(100);
+
 			/* Step 3c - Assign IDs to new modules */
-			for (j=1 ; j<=MaxNumOfPorts ; j++) 
+			for (j=1 ; j<=MaxNumOfPorts ; j++)
 			{
 				temp16 = neighbors2[j-1][0];		/* Neighbor ID */
-				temp1 = (uint8_t)(temp16>>8);											
+				temp1 = (uint8_t)(temp16>>8);
 				if (temp16 != 0 && temp1 == 0)			/* UnIDed module */
 				{
 					/* New ID */
-					messageParams[1] = ++currentID;		
+					messageParams[1] = ++currentID;
 					N = currentID;			/* Update number of modules in the array */
 					/* Modify neighbors table */
 					neighbors2[j-1][0] = ( (uint16_t) currentID << 8 ) + (uint8_t)(neighbors2[j-1][0]);
@@ -3390,15 +3390,15 @@ BOS_Status Explore(void)
 					osDelay(10);
 				}
 			}
-			
+
 			/* Step 3d - Update master topology array */
-			for (j=1 ; j<=MaxNumOfPorts ; j++) 
+			for (j=1 ; j<=MaxNumOfPorts ; j++)
 			{
 				if (neighbors2[j-1][0])
-				{	
+				{
 					temp16 = neighbors2[j-1][0];
 					temp1 = (uint8_t)(temp16>>8);										/* Neighbor ID */
-					temp2 = (uint8_t)(neighbors2[j-1][0]);					/* Neighbor port */		
+					temp2 = (uint8_t)(neighbors2[j-1][0]);					/* Neighbor port */
 					if (temp1 != 1)			/* Execlude the master */
 					{
 						/* Update module i section */
@@ -3408,17 +3408,17 @@ BOS_Status Explore(void)
 						/* Update module i neighbors */
 						if (array[temp1-1][temp2] == 0) {
 							array[temp1-1][0]	= neighbors2[j-1][1];				/* Neighbor PN */
-							array[temp1-1][temp2] = ( i << 3 ) | j;				/* Module i ID | Module i port */								
+							array[temp1-1][temp2] = ( i << 3 ) | j;				/* Module i ID | Module i port */
 						}
 					}
 				}
-			}	
-			
+			}
+
 			/* Reset neighbors2 array */
 			memset(neighbors2, 0, sizeof(neighbors2) );
-			
+
 			/* Step 3e - Ask all discovered modules to update their topology array */
-			for (j=2 ; j<=currentID ; j++) 
+			for (j=2 ; j<=currentID ; j++)
 			{
 				memcpy(messageParams, array, (size_t) (currentID*(MaxNumOfPorts+1)*2) );
 				SendMessageToModule(j, CODE_topology, (size_t) (currentID*(MaxNumOfPorts+1)*2));
@@ -3427,59 +3427,59 @@ BOS_Status Explore(void)
 		}
 	}
 
-	
+
 	/* >>> Step 4 - Make sure all connected modules have been discovered */
-	
+
 	ExploreNeighbors(PcPort);
 	/* Check for any unIDed neighbors */
-	for (i=1 ; i<=NumOfPorts ; i++) 
+	for (i=1 ; i<=NumOfPorts ; i++)
 	{
 		temp16 = neighbors[i-1][0];		/* Neighbor ID */
-		temp1 = (uint8_t)(temp16>>8);											
+		temp1 = (uint8_t)(temp16>>8);
 		if (temp16 != 0 && temp1 == 0) {		/* UnIDed module */
 			result = BOS_ERR_UnIDedModule;
-		}		
+		}
 	}
 	/* Ask other modules for any unIDed neighbors */
-	for (i=2 ; i<=currentID ; i++) 
+	for (i=2 ; i<=currentID ; i++)
 	{
 		SendMessageToModule(i, CODE_explore_adj, 0);
-		osDelay(100);	
+		osDelay(100);
 		/* Check for any unIDed neighbors */
-		for (j=1 ; j<=MaxNumOfPorts ; j++) 
+		for (j=1 ; j<=MaxNumOfPorts ; j++)
 		{
 			temp16 = neighbors2[j-1][0];		/* Neighbor ID */
-			temp1 = (uint8_t)(temp16>>8);											
+			temp1 = (uint8_t)(temp16>>8);
 			if (temp16 != 0 && temp1 == 0) {		/* UnIDed module */
 				result = BOS_ERR_UnIDedModule;
 			}
-		}				
+		}
 	}
-	
-	
+
+
 	/* >>> Step 5 - If no unIDed modules found, generate and distribute port directions */
-	
+
 	if (result == BOS_OK)
-	{	
+	{
 		/* Step 5a - Virtually reset the state of master ports to Normal */
 		for (port=1 ; port<=NumOfPorts ; port++) {
 			arrayPortsDir[0] &= (~(0x8000>>(port-1)));		/* Set bit to zero */
 		}
-		
+
 		/* Step 5b - Update other modules ports starting from the last one */
-		for (i=currentID ; i>=2 ; i--) 
+		for (i=currentID ; i>=2 ; i--)
 		{
-			for (p=1 ; p<=MaxNumOfPorts ; p++) 
-			{		
+			for (p=1 ; p<=MaxNumOfPorts ; p++)
+			{
 				if (!array[i-1][p])	{
 					/* If empty port leave normal */
 					messageParams[p-1] = NORMAL;
 					arrayPortsDir[i-1] &= (~(0x8000>>(p-1)));		/* Set bit to zero */
 				} else {
-					/* If not empty, check neighbor */			
+					/* If not empty, check neighbor */
 					temp16 = array[i-1][p];
 					temp1 = (uint8_t)(temp16>>3);										/* Neighbor ID */
-					temp2 = (uint8_t)(temp16 & 0x0007);							/* Neighbor port */	
+					temp2 = (uint8_t)(temp16 & 0x0007);							/* Neighbor port */
 					/* Check neighbor port direction */
 					if ( !(arrayPortsDir[temp1-1] & (0x8000>>(temp2-1))) ) {
 						/* Neighbor port is normal */
@@ -3488,11 +3488,11 @@ BOS_Status Explore(void)
 					} else {
 						/* Neighbor port is reversed */
 						messageParams[p-1] = NORMAL;
-						arrayPortsDir[i-1] &= (~(0x8000>>(p-1)));		/* Set bit to zero */						
-					}				
+						arrayPortsDir[i-1] &= (~(0x8000>>(p-1)));		/* Set bit to zero */
+					}
 				}
 			}
-			
+
 			/* Step 5c - Check if an inport is reversed */
 			/* Find out the inport to this module from master */
 			FindRoute(1, i);
@@ -3501,29 +3501,29 @@ BOS_Status Explore(void)
 			/* Is the inport reversed? */
 			if ( (temp1 == i) || (messageParams[temp2-1] == REVERSED) )
 				messageParams[MaxNumOfPorts] = REVERSED;		/* Make sure the inport is reversed */
-			
+
 			/* Step 5d - Update module ports directions */
 			SendMessageToModule(i, CODE_port_dir, MaxNumOfPorts+1);
-			osDelay(10);			
-		}			
-	
+			osDelay(10);
+		}
+
 		/* Step 5e - Update master ports > all normal */
 		for (port=1 ; port<=NumOfPorts ; port++) {
 			if (port != PcPort)	SwapUartPins(GetUart(port), NORMAL);
 		}
 	}
-	
-			
+
+
 	/* >>> Step 6 - Test new port directions by pinging all modules */
-	
-	if (result == BOS_OK) 
-	{		
+
+	if (result == BOS_OK)
+	{
 		osDelay(100);
 		BOS.response = BOS_RESPONSE_MSG;		// Enable response for pings
-		for (i=2 ; i<=N ; i++) 
+		for (i=2 ; i<=N ; i++)
 		{
 			SendMessageToModule(i, CODE_ping, 0);
-			osDelay(300*NumberOfHops(i));	
+			osDelay(300*NumberOfHops(i));
 			//osDelay(100);
 			if (responseStatus == BOS_OK)
 				result = BOS_OK;
@@ -3531,9 +3531,9 @@ BOS_Status Explore(void)
 				result = BOS_ERR_NoResponse;
 		}
 	}
-	
+
 	/* >>> Step 7 - Save all (topology and port directions) in RO/EEPROM */
-	
+
 	if (result == BOS_OK)
 	{
 		/* Save data in the master */
@@ -3542,23 +3542,23 @@ BOS_Status Explore(void)
 		osDelay(100);
 		/* Ask other modules to save their data too */
 		SendMessageToModule(BOS_BROADCAST, CODE_exp_eeprom, 0);
-	}	
+	}
 
 	return result;
 }
 #endif
 /*-----------------------------------------------------------*/
-#ifndef _N
-/* --- Explore adjacent neighbors 
+#ifndef __N__
+/* --- Explore adjacent neighbors
 */
 BOS_Status ExploreNeighbors(uint8_t ignore)
 {
-	BOS_Status result = BOS_OK; 
+	BOS_Status result = BOS_OK;
 
 	/* Send Hi messages to adjacent neighbors */
-	for (uint8_t port=1 ; port<=NumOfPorts ; port++)  
+	for (uint8_t port=1 ; port<=NumOfPorts ; port++)
 	{
-		if (port != ignore) 
+		if (port != ignore)
 		{
 			/* This module info */
 			messageParams[0] = (uint8_t) (myPN >> 8);
@@ -3570,127 +3570,127 @@ BOS_Status ExploreNeighbors(uint8_t ignore)
 			osDelay(10);
 		}
 	}
-	
+
 	return result;
 }
 #endif
 /*-----------------------------------------------------------*/
 
-/* --- Find array broadcast routes starting from a given module 
+/* --- Find array broadcast routes starting from a given module
 				(Takes about 50 usec)
 */
 BOS_Status FindBroadcastRoutes(uint8_t src)
 {
-	BOS_Status result = BOS_OK; 
-	uint8_t p = 0, m = 0, level = 0, untaged = 0; 
+	BOS_Status result = BOS_OK;
+	uint8_t p = 0, m = 0, level = 0, untaged = 0;
 	uint8_t  modules[N];			// Todo: Optimize to make bit-wise
-	
+
 	/* 1. Initialize modules list and broadcast routes */
-	
+
 	for(m=0 ; m<N ; m++)
-	{	
+	{
 		modules[m] = 0;
 		bcastRoutes[m] = 0;
 	}
 	modules[src-1] = ++level;					// Tag the source
-	
+
 	/* 2. Source module should send to all neighbors */
-	
+
 	++level;													// Move one level
-	
+
 	for(p=1 ; p<=NumOfPorts ; p++)
 	{
-		if (array[src-1][p]) 
+		if (array[src-1][p])
 		{
 			bcastRoutes[src-1] |= (0x01 << (p-1));
-			modules[(array[src-1][p] >> 3)-1] = level;			// Tag this module as already broadcasted-to 
+			modules[(array[src-1][p] >> 3)-1] = level;			// Tag this module as already broadcasted-to
 		}
 	}
-	
+
 	/* 3. Starting from source neighbors, check all other modules we haven't broadcasted-to yet, one by one */
-	
+
 	do
-	{	
+	{
 		untaged = 0;																			// Reset the untaged counter
 		++level;																					// Move one level
-		
+
 		for(m=0 ; m<N ; m++)															// Scan all modules in the list
 		{
-			if (modules[m] == (level-1))										// This module is already broadcasted-to from the previous level 
-			{			
+			if (modules[m] == (level-1))										// This module is already broadcasted-to from the previous level
+			{
 				for(p=1 ; p<=NumOfPorts ; p++)								// Check all neighbors if they're not already broadcasted-to
 				{
 					if (array[m][p] && (modules[(array[m][p] >> 3)-1] == 0)) 			// Found an untaged module
 					{
 						bcastRoutes[m] |= (0x01 << (p-1));
-						modules[(array[m][p] >> 3)-1] = level;		// Tag this module as already broadcasted-to 
+						modules[(array[m][p] >> 3)-1] = level;		// Tag this module as already broadcasted-to
 						++untaged;
 					}
-				}			
+				}
 			}
 		}
-	} 
+	}
 	while (untaged);
 
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Load and start micro-second delay counter --- 
+/* --- Load and start micro-second delay counter ---
 */
 void StartMicroDelay(uint16_t Delay)
 {
 	portENTER_CRITICAL();
-	
+
 	/* Setup the timer to 1-usec base */
 	htim14.Init.Prescaler = HAL_RCC_GetHCLKFreq()/1000000;
 	HAL_TIM_Base_Init(&htim14);
-	
+
 	if (Delay)
 	{
 		htim14.Instance->ARR = Delay;
 
-		HAL_TIM_Base_Start(&htim14);	
+		HAL_TIM_Base_Start(&htim14);
 
 		while(htim14.Instance->CNT < Delay) {};
-		
+
 		HAL_TIM_Base_Stop(&htim14);
 	}
-	
+
 	portEXIT_CRITICAL();
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Load and start milli-second delay counter --- 
+/* --- Load and start milli-second delay counter ---
 */
 void StartMilliDelay(uint16_t Delay)
 {
 	portENTER_CRITICAL();
-	
+
 	/* Setup the timer to 1-msec base */
 	htim14.Init.Prescaler = HAL_RCC_GetHCLKFreq()/1000;
 	HAL_TIM_Base_Init(&htim14);
-	
+
 	if (Delay)
 	{
 		htim14.Instance->ARR = Delay;
-		
-		HAL_TIM_Base_Start(&htim14);	
+
+		HAL_TIM_Base_Start(&htim14);
 
 		while(htim14.Instance->CNT < Delay) {};
-		
+
 		HAL_TIM_Base_Stop(&htim14);
 	}
-	
+
 	portEXIT_CRITICAL();
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Swap UART pins ( NORMAL | REVERSED )--- 
+/* --- Swap UART pins ( NORMAL | REVERSED )---
 */
 void SwapUartPins(UART_HandleTypeDef *huart, uint8_t direction)
 {
@@ -3704,7 +3704,7 @@ void SwapUartPins(UART_HandleTypeDef *huart, uint8_t direction)
 			arrayPortsDir[myID-1] &= (~(0x8000>>(GetPort(huart)-1)));		/* Set bit to zero */
 			huart->AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_SWAP_INIT;
 			huart->AdvancedInit.Swap = UART_ADVFEATURE_SWAP_DISABLE;
-			HAL_UART_Init(huart);		
+			HAL_UART_Init(huart);
 		}
 	}
 }
@@ -3712,134 +3712,134 @@ void SwapUartPins(UART_HandleTypeDef *huart, uint8_t direction)
 /*-----------------------------------------------------------*/
 
 /* --- Find the shortest route to a module using Dijkstra's algorithm ---
- 
+
 Algorithm (from Wikipedia):
 
-1- Assign to every node a tentative distance value: set it to zero for our initial node 
+1- Assign to every node a tentative distance value: set it to zero for our initial node
 and to infinity for all other nodes.
 
-2- Set the initial node as current. Mark all other nodes unvisited. Create a set of all 
+2- Set the initial node as current. Mark all other nodes unvisited. Create a set of all
 the unvisited nodes called the unvisited set.
 
 3- For the current node, consider all of its unvisited neighbors and calculate their tentative
-distances. Compare the newly calculated tentative distance to the current assigned value and 
-assign the smaller one. For example, if the current node A is marked with a distance of 6, 
-and the edge connecting it with a neighbor B has length 2, then the distance to B (through A) 
-will be 6 + 2 = 8. If B was previously marked with a distance greater than 8 then change it to 8. 
+distances. Compare the newly calculated tentative distance to the current assigned value and
+assign the smaller one. For example, if the current node A is marked with a distance of 6,
+and the edge connecting it with a neighbor B has length 2, then the distance to B (through A)
+will be 6 + 2 = 8. If B was previously marked with a distance greater than 8 then change it to 8.
 Otherwise, keep the current value.
 
-4- When we are done considering all of the neighbors of the current node, mark the current 
+4- When we are done considering all of the neighbors of the current node, mark the current
 node as visited and remove it from the unvisited set. A visited node will never be checked again.
 
-5- If the destination node has been marked visited (when planning a route between two specific 
-nodes) or if the smallest tentative distance among the nodes in the unvisited set is infinity 
-(when planning a complete traversal; occurs when there is no connection between the initial 
+5- If the destination node has been marked visited (when planning a route between two specific
+nodes) or if the smallest tentative distance among the nodes in the unvisited set is infinity
+(when planning a complete traversal; occurs when there is no connection between the initial
 node and remaining unvisited nodes), then stop. The algorithm has finished.
 
-6- Otherwise, select the unvisited node that is marked with the smallest tentative distance, 
+6- Otherwise, select the unvisited node that is marked with the smallest tentative distance,
 set it as the new "current node", and go back to step 3.
 
  */
 uint8_t FindRoute(uint8_t sourceID, uint8_t desID)
 {
-#ifdef _N
-	uint8_t Q[_N] = {0};		// All nodes initially in Q (unvisited nodes)
+#ifdef __N__
+	uint8_t Q[__N__] = {0};		// All nodes initially in Q (unvisited nodes)
 #else
 	uint8_t Q[50] = {0};		// All nodes initially in Q (unvisited nodes)
 #endif
-	
+
 	uint8_t alt = 0; uint8_t u = 0; uint8_t v = 0; uint8_t j = 0;
-	
+
 	memset(route,0,sizeof(route));
 	routeDist[sourceID-1] = 0;                  // Distance from source to source
 	routePrev[sourceID-1] = 0;               		// Previous node in optimal path initialization undefined
-		
+
 	/* Check adjacent neighbors first! */
 	for(int col=1 ; col<=6 ; col++)
 	{
 		if (array[sourceID-1][col] && ((array[sourceID-1][col]>>3) == desID)) {
 			routeDist[desID-1] = 1;
 			route[0] = desID;
-			return col;	
+			return col;
 		}
-	}						
-	
+	}
+
 	/* Initialization */
-	for (int i=1 ; i<=N ; i++)   					
+	for (int i=1 ; i<=N ; i++)
 	{
 		if (i != sourceID)            				// Where i has not yet been removed from Q (unvisited nodes)
 		{
 			routeDist[i-1] = 0xFF;        			// Unknown distance function from source to i
 			routePrev[i-1] = 0;            			// Previous node in optimal path from source
-		}                    			
+		}
 	}
-	
+
 	/* Algorithm */
 	while (!QnotEmpty(Q))
-	{				
+	{
 		u = minArr(routeDist, Q)+1;						// Source node in first case
-		if (u == desID) 
+		if (u == desID)
 		{
 			goto finishedRoute;
 		}
 		else
-			Q[u-1] = 1;													// Remove u from Q 
-																								
+			Q[u-1] = 1;													// Remove u from Q
+
 		/* For each neighbor v where v is still in Q. */
 		for (uint8_t n=1 ; n<=6 ; n++)      		// Check all module ports
 		{
 			if (array[u-1][n])										// There's a neighbor v at this port n
-			{	
+			{
 				v = (array[u-1][n]>>3);
 				if (!Q[v-1])												// v is still in Q
 				{
 					alt = routeDist[u-1] + 1;					// Add one hop
 					if (alt < routeDist[v-1])      		// A shorter path to v has been found
 					{
-						routeDist[v-1] = alt; 
-						routePrev[v-1] = u; 
+						routeDist[v-1] = alt;
+						routePrev[v-1] = u;
 					}
 				}
 			}
 		}
-	}	
-		
+	}
+
 finishedRoute:
-		
-	/* Build the virtual route */	
+
+	/* Build the virtual route */
 	while (routePrev[u-1])        		// Construct the shortest path with a stack route
 	{
 		route[j++] = u;          				// Push the vertex onto the stack
 		u = routePrev[u-1];           	// Traverse from target to source
 	}
-	
-	/* Check which port leads to the correct module */
-	for(int col=1 ; col<=6 ; col++)	
-	{					
-		if ( array[sourceID-1][col] && ((array[sourceID-1][col]>>3) == route[routeDist[desID-1]-1]) ) {
-			return col;	
-		}
-	}	
 
-	return 0;			
+	/* Check which port leads to the correct module */
+	for(int col=1 ; col<=6 ; col++)
+	{
+		if ( array[sourceID-1][col] && ((array[sourceID-1][col]>>3) == route[routeDist[desID-1]-1]) ) {
+			return col;
+		}
+	}
+
+	return 0;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Display array topology in human-readable format through module port --- 
+/* --- Display array topology in human-readable format through module port ---
 */
 void DisplayTopology(uint8_t port)
 {
 	/* Print table header */
 	sprintf(pcUserMessage, "\n\r(Module:Port)\t\t");
 	writePxMutex(port, pcUserMessage, strlen(pcUserMessage), cmd50ms, HAL_MAX_DELAY);
-	for (uint8_t i=1 ; i<=NumOfPorts ; i++) 
+	for (uint8_t i=1 ; i<=NumOfPorts ; i++)
 	{
 		sprintf(pcUserMessage, "P%d\t", i);
 		writePxMutex(port, pcUserMessage, strlen(pcUserMessage), cmd50ms, HAL_MAX_DELAY);
 	}
 	writePxMutex(port, "\n\n\r", 3, cmd50ms, HAL_MAX_DELAY);
-	
+
 	/* Print each row */
 	for(uint8_t row=0 ; row<N ; row++)
 	{
@@ -3856,66 +3856,66 @@ void DisplayTopology(uint8_t port)
 				sprintf(pcUserMessage, "%d\t",0);
 			else
 				sprintf(pcUserMessage, "%d:%d\t", (array[row][col]>>3), (array[row][col]&0x07) );
-			writePxMutex(port, pcUserMessage, strlen(pcUserMessage), cmd50ms, HAL_MAX_DELAY);			
+			writePxMutex(port, pcUserMessage, strlen(pcUserMessage), cmd50ms, HAL_MAX_DELAY);
 		}
 		writePxMutex(port, "\n\r", 2, cmd50ms, HAL_MAX_DELAY);
 	}
-	
+
 	writePxMutex(port, "\n", 1, cmd50ms, HAL_MAX_DELAY);
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Display ports directions in human-readable format through module port --- 
+/* --- Display ports directions in human-readable format through module port ---
 */
 void DisplayPortsDir(uint8_t port)
 {
 	sprintf(pcUserMessage, "\n\rThese ports are reversed:");
 	writePxMutex(port, pcUserMessage, strlen(pcUserMessage), cmd50ms, HAL_MAX_DELAY);
-	
-	for (uint8_t i=1 ; i<=N ; i++) 
+
+	for (uint8_t i=1 ; i<=N ; i++)
 	{
-		for (uint8_t p=1 ; p<=MaxNumOfPorts ; p++) 
-		{		
+		for (uint8_t p=1 ; p<=MaxNumOfPorts ; p++)
+		{
 			if ( (arrayPortsDir[i-1] & (0x8000>>(p-1))) ) 			/* Port is reversed */
 			{
 				sprintf(pcUserMessage, "\n\rModule %d : P%d", i, p);
 				writePxMutex(port, pcUserMessage, strlen(pcUserMessage), cmd50ms, HAL_MAX_DELAY);
-			}	
+			}
 		}
 	}
-	
+
 	sprintf(pcUserMessage, "\n\n\rAll other ports are normal\n\r");
 	writePxMutex(port, pcUserMessage, strlen(pcUserMessage), cmd50ms, HAL_MAX_DELAY);
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Display a description of current module status (Firmware, Ports, P2P DMAs) --- 
+/* --- Display a description of current module status (Firmware, Ports, P2P DMAs) ---
 */
 void DisplayModuleStatus(uint8_t port)
 {
 	int8_t *pcOutputString;
 	uint16_t temp = 0;
-	
+
 	/* Obtain the address of the output buffer. */
 	pcOutputString = FreeRTOS_CLIGetOutputBuffer();
-	
+
 	strcpy( (char *) pcOutputString, "");
-	
+
 	sprintf(pcUserMessage, "\n\r*** Module %d Status ***\n", myID);
 	strcat( (char *) pcOutputString, pcUserMessage);
 	sprintf(pcUserMessage, "\n\rConnected via port: P%d\n\r", PcPort);
 	strcat( (char *) pcOutputString, pcUserMessage);
-	
+
 	/* Firmware */
 	sprintf(pcUserMessage, "\n\rFirmware version: %d.%d.%d", _firmMajor, _firmMinor, _firmPatch);
 	strcat( (char *) pcOutputString, pcUserMessage);
 	sprintf(pcUserMessage, "\n\rFirmware date:    %s", _firmDate);
 	strcat( (char *) pcOutputString, pcUserMessage);
 	sprintf(pcUserMessage, "\n\rFirmware time:    %s\n\r", _firmTime);
-	strcat( (char *) pcOutputString, pcUserMessage);	
-	
+	strcat( (char *) pcOutputString, pcUserMessage);
+
 	/* Ports */
 	sprintf(pcUserMessage, "\n\rPorts Status:\n\n\r");
 	strcat( (char *) pcOutputString, pcUserMessage);
@@ -3925,7 +3925,7 @@ void DisplayModuleStatus(uint8_t port)
 		strcat( (char *) pcOutputString, pcUserMessage);
 		switch (portStatus[i])
 		{
-				case FREE : 
+				case FREE :
 						sprintf(pcUserMessage, "Free\n\r"); break;
 				case MSG :
 						sprintf(pcUserMessage, "Receiving messages\n\r"); break;
@@ -3937,13 +3937,13 @@ void DisplayModuleStatus(uint8_t port)
 						sprintf(pcUserMessage, "Connected to a button/switch\n\r"); break;
 				default:
 						break;
-		}		
+		}
 		strcat( (char *) pcOutputString, pcUserMessage);
-	}	
+	}
 
 	/* P2P DMAs */
 	sprintf(pcUserMessage, "\n\rPort-to-port DMAs Status:\n\r");
-	strcat( (char *) pcOutputString, pcUserMessage);	
+	strcat( (char *) pcOutputString, pcUserMessage);
 	if (portPortDMA1.Instance->CNDTR == 0) {
 			sprintf(pcUserMessage, "\n\rPort-to-port DMA 1 is free");
 	} else {
@@ -3963,71 +3963,71 @@ void DisplayModuleStatus(uint8_t port)
 	}
 	strcat( (char *) pcOutputString, pcUserMessage);
 	strcat( (char *) pcOutputString, "\n\r");
-	
+
 	/* Ports direction */
 	strcat( (char *) pcOutputString, "\n\rThese ports are reversed: ");
 	temp = strlen( (char *) pcOutputString);
-	for (uint8_t p=1 ; p<=NumOfPorts ; p++) 
-	{		
+	for (uint8_t p=1 ; p<=NumOfPorts ; p++)
+	{
 		if ( (arrayPortsDir[myID-1] & (0x8000>>(p-1))) ) 			/* Port is reversed */
 		{
 			sprintf(pcUserMessage, "P%d ", p);
 			strcat( (char *) pcOutputString, pcUserMessage);
-		}	
+		}
 	}
 	if (temp == strlen( (char *) pcOutputString)) {				/* All ports are normal */
 		strcat( (char *) pcOutputString, "None");
 	}
 	strcat( (char *) pcOutputString, "\n\r");
-	
+
 	/* Display output */
 	if (port)
 		writePxMutex(port, (char *) pcOutputString, strlen( (char *) pcOutputString), cmd50ms, HAL_MAX_DELAY);
-	
+
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Extract module ID from it's alias, ID string or keyword --- 
+/* --- Extract module ID from it's alias, ID string or keyword ---
 */
 int16_t GetID(char* string)
 {
 	uint8_t id = 0, i = 0;
-	
+
 	if(!strcmp(string, "me"))							/* Check keywords */
 		return myID;
-	else if(!strcmp(string, "all"))							
-		return BOS_BROADCAST;				
+	else if(!strcmp(string, "all"))
+		return BOS_BROADCAST;
 	else if (string[0] == '#') 						/* Check IDs */
-	{					
+	{
 		id = atol(string+1);
 		if (id > 0 && id <= N)
 			return id;
 		else if (id == myID)
 			return myID;
 		else
-			return BOS_ERR_WrongID;				
-	} 
+			return BOS_ERR_WrongID;
+	}
 	else 																	/* Check alias */
-	{															
+	{
 		/* Check module alias */
 		for (i=0 ; i<N ; i++) {
-			if(!strcmp(string, moduleAlias[i]) && (*string != 0))	return (i+1);	
+			if(!strcmp(string, moduleAlias[i]) && (*string != 0))	return (i+1);
 		}
-		
+
 		/* Check group alias */
 		for(i=0 ; i<MaxNumOfGroups ; i++) {
 			if (!strcmp(string, groupAlias[i]))	return (BOS_MULTICAST|(i<<8));
-		}			
-		
-		return BOS_ERR_WrongName;			
+		}
+
+		return BOS_ERR_WrongName;
 	}
-	
+
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Name a module with an alias --- 
+/* --- Name a module with an alias ---
 */
 BOS_Status NameModule(uint8_t module, char* alias)
 {
@@ -4039,50 +4039,50 @@ BOS_Status NameModule(uint8_t module, char* alias)
 	/* 1. Check module alias with keywords */
 	for(i=0 ; i<NumOfKeywords ; i++)
 	{
-		if (!strcmp(alias, BOSkeywords[i]))	
+		if (!strcmp(alias, BOSkeywords[i]))
 			return BOS_ERR_Keyword;
 	}
-	
+
 	/* 2. Check module alias with other module aliases */
 	for(i=1 ; i<N ; i++)
 	{
-		if (!strcmp(alias, moduleAlias[i]))	
+		if (!strcmp(alias, moduleAlias[i]))
 			return BOS_ERR_ExistingAlias;
 	}
 
 	/* 3. Check module alias with group aliases */
 	for(i=0 ; i<MaxNumOfGroups ; i++)
 	{
-		if (!strcmp(alias, groupAlias[i]))	
+		if (!strcmp(alias, groupAlias[i]))
 			return BOS_ERR_ExistingAlias;
 	}
-	
+
 	/* 4. Check alias with BOS and module commands */
 	for( pxCommand = &xRegisteredCommands; pxCommand != NULL; pxCommand = pxCommand->pxNext )
 	{
 		pcRegisteredCommandString = pxCommand->pxCommandLineDefinition->pcCommand;
 		xCommandStringLength = strlen( ( const char * ) pcRegisteredCommandString );
-		
+
 		if( !strncmp(alias, (const char *) pcRegisteredCommandString, xCommandStringLength ) ) {
 			return BOS_ERR_ExistingCmd;
 		}
 	}
-	
+
 	/* 5. Module alias is unique */
 	strcpy(moduleAlias[module], alias);
-	
+
 	/* 6. Share new module alias with other modules */
-	
-	
+
+
 	/* 7. Save new alias to emulated EEPROM */
 	result = SaveEEalias();
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Add a module to this group --- 
+/* --- Add a module to this group ---
 */
 BOS_Status AddModuleToGroup(uint8_t module, char* group)
 {
@@ -4092,134 +4092,134 @@ BOS_Status AddModuleToGroup(uint8_t module, char* group)
 	size_t xCommandStringLength;
 
 	/* Check alias with other group aliases */
-	
+
 	for(i=0 ; i<MaxNumOfGroups ; i++)
 	{
 		/* This group already exists */
-		if (!strcmp(group, groupAlias[i]))	
+		if (!strcmp(group, groupAlias[i]))
 		{
 			/* 1. Add this module to the group */
-			groupModules[module-1] |= (0x0001<<i);	
+			groupModules[module-1] |= (0x0001<<i);
 
 			/* 2. Save group to emulated EEPROM -- Should call this manually */
-			//result = SaveEEgroup();			
-			
+			//result = SaveEEgroup();
+
 			return result;
 		}
 	}
-	
+
 	/* This is a new group - Verify alias and create the group */
-	
+
 	/* 1. Check group alias with keywords */
 	for(j=0 ; j<NumOfKeywords ; j++)
 	{
-		if (!strcmp(group, BOSkeywords[j]))	
+		if (!strcmp(group, BOSkeywords[j]))
 			return BOS_ERR_Keyword;
-	}	
+	}
 
 	/* 2. Check group alias with module aliases */
 	for(j=1 ; j<N ; j++)
 	{
-		if (!strcmp(group, moduleAlias[j]))	
+		if (!strcmp(group, moduleAlias[j]))
 			return BOS_ERR_ExistingAlias;
-	}		
-	
+	}
+
 	/* 3. Check group alias with BOS and module commands */
 	for( pxCommand = &xRegisteredCommands; pxCommand != NULL; pxCommand = pxCommand->pxNext )
 	{
 		pcRegisteredCommandString = pxCommand->pxCommandLineDefinition->pcCommand;
 		xCommandStringLength = strlen( ( const char * ) pcRegisteredCommandString );
-		
+
 		if( !strncmp(group, (const char *) pcRegisteredCommandString, xCommandStringLength ) ) {
 			return BOS_ERR_ExistingCmd;
 		}
-	}			
-	
+	}
+
 	/* 4. Group alias is unique - copy to first empty location */
 	for(i=0 ; i<MaxNumOfGroups ; i++)
 	{
-		if (!groupAlias[i][0]) {	
-			strcpy(groupAlias[i], group);	
+		if (!groupAlias[i][0]) {
+			strcpy(groupAlias[i], group);
 			break;
 		}
-	}		
-	
+	}
+
 	/* 5. Add this module to the new group */
 	groupModules[module-1] |= (0x0001<<i);
-	
+
 	/* 6. Share new group with other modules */
 
 
 	/* 7. Save new group to emulated EEPROM - Should call this manually */
-	//result = SaveEEgroup();			
-	
+	//result = SaveEEgroup();
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Read Ports directions when a pre-defined topology file is used --- 
+/* --- Read Ports directions when a pre-defined topology file is used ---
 */
 BOS_Status ReadPortsDir(void)
 {
-	BOS_Status result = BOS_OK; 
-	
+	BOS_Status result = BOS_OK;
+
 	/* Ask all other modules for their ports directions */
-	for (uint8_t i=1 ; i<=N ; i++) 
+	for (uint8_t i=1 ; i<=N ; i++)
 	{
 		if (i != myID) {
 			SendMessageToModule(i, CODE_read_port_dir, 0);
 			Delay_ms_no_rtos(50);
 			if (responseStatus != BOS_OK)	{
 				result = BOS_ERR_NoResponse;
-			} 	
+			}
 		} else {
 			/* Check my own ports */
 			for (uint8_t p=1 ; p<=NumOfPorts ; p++) {
 				if (GetUart(p)->AdvancedInit.Swap == UART_ADVFEATURE_SWAP_ENABLE) {
 					arrayPortsDir[myID-1] |= (0x8000>>(p-1));		/* Set bit to 1 */
-				}									
+				}
 			}
 		}
 	}
-	
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
-#ifndef _N
-/* --- Update module port directions based on what is stored in eeprom --- 
+#ifndef __N__
+/* --- Update module port directions based on what is stored in eeprom ---
 */
 BOS_Status UpdateMyPortsDir(void)
 {
 	BOS_Status result = BOS_OK;
-	
+
 	/* Check port direction */
-	for (uint8_t p=1 ; p<=NumOfPorts ; p++) 
+	for (uint8_t p=1 ; p<=NumOfPorts ; p++)
 	{
 		if ( !(arrayPortsDir[myID-1] & (0x8000>>(p-1))) ) {
 			/* Port is normal */
 			SwapUartPins(GetUart(p), NORMAL);
 		} else {
 			/* Port is reversed */
-			SwapUartPins(GetUart(p), REVERSED);					
-		}	
-	}		
-	
+			SwapUartPins(GetUart(p), REVERSED);
+		}
+	}
+
 	return result;
 }
 #endif
 /*-----------------------------------------------------------*/
 
-/* --- Start a single-cast DMA stream across the array. Transfer ends after (count) bytes are transferred 
-			or timeout (ms), whichever comes first. If stored = true, the stream is stored in emulated eeprom --- 
+/* --- Start a single-cast DMA stream across the array. Transfer ends after (count) bytes are transferred
+			or timeout (ms), whichever comes first. If stored = true, the stream is stored in emulated eeprom ---
 */
 BOS_Status StartScastDMAStream(uint8_t srcP, uint8_t srcM, uint8_t dstP, uint8_t dstM, uint8_t direction, uint32_t count, uint32_t timeout, bool stored)
 {
 	BOS_Status result = BOS_OK;
 	TimerHandle_t xTimerStream = NULL;
 	uint8_t port = 0, temp1 = 0, temp2 = 0;
-	
+
 	/* Is the source a different module? */
 	if (srcM != myID) {
 		/* Forward this task to the source module */
@@ -4236,17 +4236,17 @@ BOS_Status StartScastDMAStream(uint8_t srcP, uint8_t srcM, uint8_t dstP, uint8_t
 		messageParams[10] = dstM;												/* destination module */
 		messageParams[11] = dstP;												/* destination port */
 		messageParams[12] = stored;											/* EEPROM storage */
-		SendMessageToModule(srcM, CODE_DMA_scast_stream, 13);		
-		
+		SendMessageToModule(srcM, CODE_DMA_scast_stream, 13);
+
 		return result;
 	}
-	
+
 	/* Inform participating modules */
 	for(uint8_t i=0 ; i<sizeof(route) ; i++)
 	{
 		FindRoute(srcM, dstM);
 		/* Message other modules */
-		if (route[i]) 
+		if (route[i])
 		{
 			/* Find out the inport and outport to this module from previous one */
 			if (route[i+1]) {
@@ -4278,12 +4278,12 @@ BOS_Status StartScastDMAStream(uint8_t srcP, uint8_t srcM, uint8_t dstP, uint8_t
 			osDelay(10);
 		}
 	}
-	
+
 	if (srcM == dstM)
 		port = dstP;
 	else
 		port = FindRoute(srcM, dstM);
-	
+
 	/* Setup my own DMA stream */
 	if (direction == FORWARD) {
 		PortPortDMA1_Setup(GetUart(srcP), GetUart(port), 1); DMAStream1total = count;
@@ -4299,13 +4299,13 @@ BOS_Status StartScastDMAStream(uint8_t srcP, uint8_t srcM, uint8_t dstP, uint8_t
 		/* Create a timeout timer */
 		xTimerStream = xTimerCreate( "StreamTimer", pdMS_TO_TICKS(timeout), pdFALSE, ( void * ) 12, StreamTimerCallback );
 	}
-	
+
 	// Todo: store my own streams to EEPROM
-	
+
 	/* Start the timeout timer */
 	if (xTimerStream != NULL)
 		xTimerStart( xTimerStream, portMAX_DELAY );
-	
+
 	return result;
 }
 
@@ -4319,24 +4319,24 @@ BOS_Status AddPortButton(uint8_t buttonType, uint8_t port)
 {
 	BOS_Status result = BOS_OK;
 	GPIO_InitTypeDef GPIO_InitStruct;
-	uint32_t TX_Port, RX_Port; 
+	uint32_t TX_Port, RX_Port;
 	uint16_t TX_Pin, RX_Pin, temp16, res;
 	uint8_t temp8 = 0;
-	
+
 	/* 1. Stop communication at this port (only if the scheduler is running) */
 	if (BOS_initialized) {
 		osSemaphoreRelease(PxRxSemaphoreHandle[port]);		/* Give back the semaphore if it was taken */
 		osSemaphoreRelease(PxTxSemaphoreHandle[port]);
 	}
-	portStatus[port] = PORTBUTTON;	
-	
+	portStatus[port] = PORTBUTTON;
+
 	/* 2. Deinitialize UART (only if module is initialized) */
 	if (BOS_initialized) {
 		HAL_UART_DeInit(GetUart(port));
 	}
-	
+
 	/* 3. Initialize GPIOs */
-	GetPortGPIOs(port, &TX_Port, &TX_Pin, &RX_Port, &RX_Pin);		
+	GetPortGPIOs(port, &TX_Port, &TX_Pin, &RX_Port, &RX_Pin);
 	/* Ouput (TXD) */
 	GPIO_InitStruct.Pin = TX_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -4350,8 +4350,8 @@ BOS_Status AddPortButton(uint8_t buttonType, uint8_t port)
 	HAL_GPIO_Init((GPIO_TypeDef *)RX_Port, &GPIO_InitStruct);
 
 	/* 4. Update button struct */
-	button[port].type = buttonType;	
-	
+	button[port].type = buttonType;
+
 	/* 5. Add to EEPROM if not already there */
 	res = EE_ReadVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)], &temp16);
 	if(!res)																														// This variable exists
@@ -4360,7 +4360,7 @@ BOS_Status AddPortButton(uint8_t buttonType, uint8_t port)
 		if ( ((temp8 >> 4) == port) && ((temp8 & 0x0F) == buttonType) )		// This is same port and same type, do not update
 			return BOS_OK;
 		else 																															// Update the variable
-		{																														
+		{
 			temp16 = ((uint16_t)port << 12) | ((uint16_t)buttonType << 8);
 			EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)], temp16);
 			/* Reset times */
@@ -4372,13 +4372,13 @@ BOS_Status AddPortButton(uint8_t buttonType, uint8_t port)
 	else																																// Variable does not exist. Create a new one
 	{
 		temp16 = ((uint16_t)port << 12) | ((uint16_t)buttonType << 8);
-		EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)], temp16);		
+		EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)], temp16);
 		/* Reset times */
 		EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+1], 0);
 		EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+2], 0);
 		EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+3], 0);
 	}
-	
+
 	return result;
 }
 
@@ -4391,14 +4391,14 @@ BOS_Status RemovePortButton(uint8_t port)
 {
 	BOS_Status result = BOS_OK;
 	uint16_t res, temp16;
-	
+
 	/* 1. Remove from button struct */
 	button[port].type = NONE;
 	button[port].state = NONE;
 	button[port].events = 0;
 	button[port].pressedX1Sec = 0; button[port].pressedX2Sec = 0; button[port].pressedX3Sec = 0;
 	button[port].releasedY1Sec = 0; button[port].releasedY2Sec = 0; button[port].releasedY3Sec = 0;
-	
+
 	/* 2. Remove from EEPROM if it's already there */
 	res = EE_ReadVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)], &temp16);
 	if(!res)																														// This variable exists, reset all to zeros
@@ -4407,125 +4407,125 @@ BOS_Status RemovePortButton(uint8_t port)
 		/* Reset times */
 		EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+1], 0);
 		EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+2], 0);
-		EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+3], 0);		
+		EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+3], 0);
 	}
-	
+
 	/* 3. Initialize UART at this port */
 	UART_HandleTypeDef* huart = GetUart(port);
-	
-	if (huart->Instance == USART1) 
-	{	
-#ifdef _Usart1		
+
+	if (huart->Instance == USART1)
+	{
+#ifdef _Usart1
 		MX_USART1_UART_Init();
 #endif
-	} 
-	else if (huart->Instance == USART2) 
-	{	
-#ifdef _Usart2	
+	}
+	else if (huart->Instance == USART2)
+	{
+#ifdef _Usart2
 		MX_USART2_UART_Init();
 #endif
-	} 
-	else if (huart->Instance == USART3) 
-	{	
-#ifdef _Usart3	
+	}
+	else if (huart->Instance == USART3)
+	{
+#ifdef _Usart3
 		MX_USART3_UART_Init();
 #endif
-	} 
-	else if (huart->Instance == USART4) 
-	{	
-#ifdef _Usart4	
+	}
+	else if (huart->Instance == USART4)
+	{
+#ifdef _Usart4
 		MX_USART4_UART_Init();
 #endif
-	} 
-	else if (huart->Instance == USART5) 
-	{	
-#ifdef _Usart5	
+	}
+	else if (huart->Instance == USART5)
+	{
+#ifdef _Usart5
 		MX_USART5_UART_Init();
 #endif
-	} 
-	else if (huart->Instance == USART6) 
-	{	
-#ifdef _Usart6	
+	}
+	else if (huart->Instance == USART6)
+	{
+#ifdef _Usart6
 		MX_USART6_UART_Init();
 #endif
-	} 
-	else if (huart->Instance == USART7) 
-	{	
-#ifdef _Usart7	
+	}
+	else if (huart->Instance == USART7)
+	{
+#ifdef _Usart7
 		MX_USART7_UART_Init();
 #endif
-	} 
-	else if (huart->Instance == USART8) 
-	{	
-#ifdef _Usart8	
+	}
+	else if (huart->Instance == USART8)
+	{
+#ifdef _Usart8
 		MX_USART8_UART_Init();
 #endif
-	} 
+	}
 	else
-		result = BOS_ERROR;			
-	
+		result = BOS_ERROR;
+
 	/* 4. Start scanning this port */
 	portStatus[port] = FREE;
 	/* Read this port again */
-	HAL_UART_Receive_IT(huart, (uint8_t *)&cRxedChar, 1);	
-	
+	HAL_UART_Receive_IT(huart, (uint8_t *)&cRxedChar, 1);
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
 /* --- Setup button events and callbacks
-					port: array port (P1 - Px) where the button is attached 
+					port: array port (P1 - Px) where the button is attached
 					clicked: Single click event (1: Enable, 0: Disable)
 					dbl_clicked: Double click event (1: Enable, 0: Disable)
-					pressed_x1sec, pressed_x1sec, pressed_x1sec: Press time for events X1, X2 and X3 in seconds. Use 0 to disable the event. 
-					released_x1sec, released_x1sec, released_x1sec: Release time for events Y1, Y2 and Y3 in seconds. Use 0 to disable the event. 
+					pressed_x1sec, pressed_x1sec, pressed_x1sec: Press time for events X1, X2 and X3 in seconds. Use 0 to disable the event.
+					released_x1sec, released_x1sec, released_x1sec: Release time for events Y1, Y2 and Y3 in seconds. Use 0 to disable the event.
 */
 BOS_Status SetButtonEvents(uint8_t port, uint8_t clicked, uint8_t dbl_clicked, uint8_t pressed_x1sec, uint8_t pressed_x2sec, uint8_t pressed_x3sec,\
 													uint8_t released_y1sec, uint8_t released_y2sec, uint8_t released_y3sec)
 {
-	BOS_Status result = BOS_OK;	
+	BOS_Status result = BOS_OK;
 	uint16_t res, temp16; uint8_t temp8;
-	
+
 	if (button[port].type == NONE)
 		return BOS_ERR_BUTTON_NOT_DEFINED;
-	
+
 	button[port].pressedX1Sec = pressed_x1sec; button[port].pressedX2Sec = pressed_x2sec; button[port].pressedX3Sec = pressed_x3sec;
 	button[port].releasedY1Sec = released_y1sec; button[port].releasedY2Sec = released_y2sec; button[port].releasedY3Sec = released_y3sec;
-	
-	if (clicked)				
+
+	if (clicked)
 		button[port].events |= BUTTON_EVENT_CLICKED;
-	else								
+	else
 		button[port].events &= ~BUTTON_EVENT_CLICKED;
-	if (dbl_clicked)		
+	if (dbl_clicked)
 		button[port].events |= BUTTON_EVENT_DBL_CLICKED;
-	else								
+	else
 		button[port].events &= ~BUTTON_EVENT_DBL_CLICKED;
-	if (pressed_x1sec)	
+	if (pressed_x1sec)
 		button[port].events |= BUTTON_EVENT_PRESSED_FOR_X1_SEC;
-	else								
+	else
 		button[port].events &= ~BUTTON_EVENT_PRESSED_FOR_X1_SEC;
-	if (pressed_x2sec)	
+	if (pressed_x2sec)
 		button[port].events |= BUTTON_EVENT_PRESSED_FOR_X2_SEC;
-	else								
+	else
 		button[port].events &= ~BUTTON_EVENT_PRESSED_FOR_X2_SEC;
-	if (pressed_x3sec)	
+	if (pressed_x3sec)
 		button[port].events |= BUTTON_EVENT_PRESSED_FOR_X3_SEC;
-	else								
+	else
 		button[port].events &= ~BUTTON_EVENT_PRESSED_FOR_X3_SEC;
-	if (released_y1sec)	
+	if (released_y1sec)
 		button[port].events |= BUTTON_EVENT_RELEASED_FOR_Y1_SEC;
-	else								
+	else
 		button[port].events &= ~BUTTON_EVENT_RELEASED_FOR_Y1_SEC;
-	if (released_y2sec)	
+	if (released_y2sec)
 		button[port].events |= BUTTON_EVENT_RELEASED_FOR_Y2_SEC;
-	else								
+	else
 		button[port].events &= ~BUTTON_EVENT_RELEASED_FOR_Y2_SEC;
-	if (released_y3sec)	
+	if (released_y3sec)
 		button[port].events |= BUTTON_EVENT_RELEASED_FOR_Y3_SEC;
-	else								
+	else
 		button[port].events &= ~BUTTON_EVENT_RELEASED_FOR_Y3_SEC;
-	
+
 	/* Add to EEPROM */
 	res = EE_ReadVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)], &temp16);
 	if(!res)																														// This variable exists
@@ -4536,69 +4536,69 @@ BOS_Status SetButtonEvents(uint8_t port, uint8_t clicked, uint8_t dbl_clicked, u
 			temp16 = ((uint16_t)temp8 << 8) | (uint16_t)button[port].events;
 			EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)], temp16);
 		}
-		
+
 		/* Store times - only if different */
 		EE_ReadVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+1], &temp16);
 		if ( temp16 != (((uint16_t)pressed_x1sec << 8) | (uint16_t) released_y1sec) )
 			EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+1], ((uint16_t)pressed_x1sec << 8) | (uint16_t) released_y1sec);
-		
+
 		EE_ReadVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+2], &temp16);
 		if ( temp16 != (((uint16_t)pressed_x2sec << 8) | (uint16_t) released_y2sec) )
 			EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+2], ((uint16_t)pressed_x2sec << 8) | (uint16_t) released_y2sec);
-		
+
 		EE_ReadVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+3], &temp16);
 		if ( temp16 != (((uint16_t)pressed_x3sec << 8) | (uint16_t) released_y3sec) )
 			EE_WriteVariable(VirtAddVarTab[_EE_ButtonBase+4*(port-1)+3], ((uint16_t)pressed_x3sec << 8) | (uint16_t) released_y3sec);
 	}	// TODO - var does not exist after adding button!
 	else																																// Variable does not exist. Return error
-		return BOS_ERR_BUTTON_NOT_DEFINED;	
-		
-	
+		return BOS_ERR_BUTTON_NOT_DEFINED;
+
+
 	return result;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Read a variable from a remote module. 
+/* --- Read a variable from a remote module.
 			 This API returns a pointer to the remote value. Cast this pointer to match the appropriate format.
 			 If the returned value is NULL, then remote variable does not exist or remote module is not responsive.
-					module: Remote module ID. 
+					module: Remote module ID.
 					remoteAddress: Remote value memory address (RAM or Flash). Use the 1 to MAX_BOS_VARS to read BOS variables with unknown addresses.
-					remoteFormat (output): Pointer to format of remote BOS variable. 					
+					remoteFormat (output): Pointer to format of remote BOS variable.
 					timeout: Read timeout in msec.
 */
 uint32_t *ReadRemoteVar(uint8_t module, uint32_t remoteAddress, varFormat_t *remoteFormat, uint32_t timeout)
 {
 	/* Reset local buffer */
 	remoteBuffer = 0;
-	
+
 	/* Send the Message */
 	messageParams[0] = remoteAddress;			// Send BOS variable index
 	SendMessageToModule(module, CODE_read_remote, 1);
 	remoteBuffer = 0;											// Set a flag that we requested a BOS var
-	
+
 	/* Wait until read is complete */
 	uint32_t t0 = HAL_GetTick();
 	while ( (responseStatus != BOS_OK) && ((HAL_GetTick()-t0) < timeout) ) { };
-	
+
 	/* Return the read value address */
-	if (responseStatus == BOS_OK) 
+	if (responseStatus == BOS_OK)
 	{
 		/* Return the remote var format */
 		*remoteFormat = remoteVarFormat;
-		
-		return ((uint32_t *)&remoteBuffer);		
+
+		return ((uint32_t *)&remoteBuffer);
 	}
-	else 
+	else
 		return NULL;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Read a memory address from a remote module. 
+/* --- Read a memory address from a remote module.
 			 This API returns a pointer to the remote value. Cast this pointer to match the appropriate format.
 			 If the returned value is NULL, then remote variable does not exist or remote module is not responsive.
-					module: Remote module ID. 
+					module: Remote module ID.
 					remoteAddress: Remote value memory address (RAM or Flash). Use the 1 to MAX_BOS_VARS to read BOS variables.
 					requestedFormat (input): Requested format of remote memory location (FMT_UINT8, FMT_INT8, FMT_UINT16, FMT_INT16, FMT_UINT32, FMT_INT32, FMT_FLOAT, FMT_BOOL)
 					timeout: Read timeout in msec.
@@ -4607,31 +4607,31 @@ uint32_t *ReadRemoteMemory(uint8_t module, uint32_t remoteAddress, varFormat_t r
 {
 	/* Reset local buffer */
 	remoteBuffer = 0;
-	
+
 	/* Send the Message */
 	messageParams[0] = 0;
 	messageParams[1] = requestedFormat;						// Requested format
 	messageParams[2] = (uint8_t)(remoteAddress>>24); messageParams[3] = (uint8_t)(remoteAddress>>16); // Remote address
-	messageParams[4] = (uint8_t)(remoteAddress>>8); messageParams[5] = (uint8_t)remoteAddress; 		
+	messageParams[4] = (uint8_t)(remoteAddress>>8); messageParams[5] = (uint8_t)remoteAddress;
 	SendMessageToModule(module, CODE_read_remote, 6);
 	remoteBuffer = requestedFormat;								// Set a flag that we requested a memory location
-	
+
 	/* Wait until read is complete */
 	uint32_t t0 = HAL_GetTick();
 	while ( (responseStatus != BOS_OK) && ((HAL_GetTick()-t0) < timeout) ) { };
-	
+
 	/* Return the read value address */
 	if (responseStatus == BOS_OK)
-		return ((uint32_t *)&remoteBuffer);	
-	else 
+		return ((uint32_t *)&remoteBuffer);
+	else
 		return NULL;
 }
 
 /*-----------------------------------------------------------*/
 
-/* --- Write a value to a remote module. 
-					module: Remote module ID. 
-					localAddress: Local memory address (RAM or Flash). 
+/* --- Write a value to a remote module.
+					module: Remote module ID.
+					localAddress: Local memory address (RAM or Flash).
 					remoteAddress: Remote memory address (RAM or Flash). Use the 1 to MAX_BOS_VARS to write BOS variables.
 					format: Local format sent to remote module (FMT_UINT8, FMT_INT8, FMT_UINT16, FMT_INT16, FMT_UINT32, FMT_INT32, FMT_FLOAT, FMT_BOOL)
 					timeout: Write confirmation timeout in msec. Use 0 to disable confirmation.
@@ -4643,9 +4643,9 @@ BOS_Status WriteRemote(uint8_t module, uint32_t localAddress, uint32_t remoteAdd
 
 /*-----------------------------------------------------------*/
 
-/* --- Write a value to a remote module and force full-page erase when writing to Flash. 
-					module: Remote module ID. 
-					localAddress: Local memory address (RAM or Flash). 
+/* --- Write a value to a remote module and force full-page erase when writing to Flash.
+					module: Remote module ID.
+					localAddress: Local memory address (RAM or Flash).
 					remoteAddress: Remote memory address (RAM or Flash). Use the 1 to MAX_BOS_VARS to write BOS variables.
 					format: Local format sent to remote module (FMT_UINT8, FMT_INT8, FMT_UINT16, FMT_INT16, FMT_UINT32, FMT_INT32, FMT_FLOAT, FMT_BOOL)
 					timeout: Write confirmation timeout in msec. Use 0 to disable confirmation.
@@ -4669,7 +4669,7 @@ uint8_t AddBOSvar(varFormat_t format, uint32_t address)
 			return (v+1);
 		}
   }
-	
+
 	return 0;			// Memory full
 }
 
@@ -4681,32 +4681,32 @@ BOS_Status BOS_CalendarConfig(uint8_t month, uint8_t day, uint16_t year, uint8_t
 															uint8_t minutes, uint8_t hours, uint8_t AMPM, int8_t daylightsaving)
 {
   RTC_DateTypeDef sdatestructure;
-  RTC_TimeTypeDef stimestructure;	
-	
+  RTC_TimeTypeDef stimestructure;
+
   /* Set Date */
   sdatestructure.Year = year-2000;
   sdatestructure.Month = month;
   sdatestructure.Date = day;
   sdatestructure.WeekDay = weekday;		// Todo - Calculate weekday later
-  
+
   if(HAL_RTC_SetDate(&RtcHandle,&sdatestructure,RTC_FORMAT_BIN) != HAL_OK)
 		return BOS_ERROR;
 
   /* Set Time */
   stimestructure.Hours = hours;
   stimestructure.Minutes = minutes;
-  stimestructure.Seconds = seconds; 
+  stimestructure.Seconds = seconds;
 	stimestructure.StoreOperation = RTC_STOREOPERATION_RESET;		// Todo - Use this to make sure user does not change daylight settings again
-	
+
 //	if (daylightsaving == DAYLIGHT_NONE) 											// Todo
 //		stimestructure.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
 //	else if (daylightsaving == DAYLIGHT_ADD1H)
 //		stimestructure.DayLightSaving = RTC_DAYLIGHTSAVING_ADD1H;
 //	else if (daylightsaving == DAYLIGHT_SUB1H)
 //		stimestructure.DayLightSaving = RTC_DAYLIGHTSAVING_SUB1H;
-	
+
 	if (hours > 12)	BOS.hourformat = 24;
-	
+
 	if (AMPM == RTC_AM) {
 		stimestructure.TimeFormat = RTC_HOURFORMAT12_AM;
 		BOS.hourformat = 12;
@@ -4715,16 +4715,16 @@ BOS_Status BOS_CalendarConfig(uint8_t month, uint8_t day, uint16_t year, uint8_t
 		BOS.hourformat = 12;
 	} else
 		BOS.hourformat = 24;
-	
+
   if (HAL_RTC_SetTime(&RtcHandle, &stimestructure, RTC_FORMAT_BIN) != HAL_OK)
 		return BOS_ERROR;
-	
+
 	/* Save RTC hourformat and daylightsaving to EEPROM */
 	EE_WriteVariable(VirtAddVarTab[_EE_ParamsRTC], ((uint16_t)BOS.hourformat<<8) | (uint16_t)BOS.buttons.minInterClickTime);
 
   /* Writes a data in a RTC Backup data Register1 */
   HAL_RTCEx_BKUPWrite(&RtcHandle, RTC_BKP_DR1, 0x32F2);
-	
+
 	return BOS_OK;
 }
 
@@ -4736,10 +4736,10 @@ void GetTimeDate(void)
 {
 	RTC_DateTypeDef sdatestructureget;
   RTC_TimeTypeDef stimestructureget;
-	
+
   HAL_RTC_GetTime(&RtcHandle, &stimestructureget, RTC_FORMAT_BIN);
   HAL_RTC_GetDate(&RtcHandle, &sdatestructureget, RTC_FORMAT_BIN);
-	
+
 	BOS.time.ampm = (stimestructureget.TimeFormat >> 7) + 1;
 	BOS.time.msec = stimestructureget.SubSeconds / 2;
 	BOS.time.seconds = stimestructureget.Seconds;
@@ -4751,7 +4751,7 @@ void GetTimeDate(void)
 	BOS.date.year = sdatestructureget.Year + 2000;
 }
 
-/* --- Make a data string with format weekday / month / date / year 
+/* --- Make a data string with format weekday / month / date / year
 */
 char *GetDateString(void)
 {
@@ -4775,7 +4775,7 @@ char *GetTimeString(void)
 
 /* -----------------------------------------------------------------------
 	|															Commands																 	|
-   ----------------------------------------------------------------------- 
+   -----------------------------------------------------------------------
 */
 
 static portBASE_TYPE prvTaskStatsCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
@@ -4825,7 +4825,7 @@ static portBASE_TYPE pingCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen,
 {
 	static const int8_t *pcMessage1 = ( int8_t * ) "Hi from module %d\r\n";
 	static const int8_t *pcMessage2 = ( int8_t * ) "Hi from module %d (%s)\r\n";
-	
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
@@ -4838,9 +4838,9 @@ static portBASE_TYPE pingCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen,
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessage1, myID);
 	else
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessage2, myID, moduleAlias[myID]);
-	
-	RTOS_IND_blink(200);	
-	
+
+	RTOS_IND_blink(200);
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -4851,7 +4851,7 @@ static portBASE_TYPE pingCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen,
 static portBASE_TYPE bootloaderUpdateCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
 	static const int8_t *pcMessage = ( int8_t * ) "Update firmware for module %d\n\r";
-	
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
@@ -4863,26 +4863,26 @@ static portBASE_TYPE bootloaderUpdateCommand( int8_t *pcWriteBuffer, size_t xWri
 	sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessage, myID);
 	strcat( ( char * ) pcWriteBuffer, ( char * ) pcBootloaderUpdateMessage );
 	writePxMutex(PcPort, (char*) pcWriteBuffer, strlen((char*) pcWriteBuffer), cmd50ms, HAL_MAX_DELAY);
-	
-	/* Address for RAM signature (STM32F09x) - Last 4 words of SRAM */
-	*((unsigned long *)0x20007FF0) = 0xDEADBEEF;   
 
-	NVIC_SystemReset();		
-	
+	/* Address for RAM signature (STM32F09x) - Last 4 words of SRAM */
+	*((unsigned long *)0x20007FF0) = 0xDEADBEEF;
+
+	NVIC_SystemReset();
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
 }
 
 /*-----------------------------------------------------------*/
-#ifndef _N
+#ifndef __N__
 static portBASE_TYPE exploreCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
 	BOS_Status result = BOS_OK;
 	static const int8_t *pcMessage = ( int8_t * ) "\nThe array is being explored. Please wait...\n\r";
 	static const int8_t *pcMessageOK = ( int8_t * ) "\nThe array exploration succeeded. I found %d modules including myself. Here is the discovered topology:\n\r";
 	static const int8_t *pcMessageErr = ( int8_t * ) "\nThe array exploration failed. Please double check connections, reset the modules and try again.\n\r";
-	
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
@@ -4893,7 +4893,7 @@ static portBASE_TYPE exploreCommand( int8_t *pcWriteBuffer, size_t xWriteBufferL
 	/* Respond to the update command */
 	strcpy( ( char * ) pcWriteBuffer, ( char * ) pcMessage );
 	writePxMutex(PcPort, (char*) pcWriteBuffer, strlen((char*) pcWriteBuffer), cmd50ms, HAL_MAX_DELAY);
-	
+
 	/* Call array exploration routine */
 	result = Explore();
 	if (result == BOS_OK) {
@@ -4906,7 +4906,7 @@ static portBASE_TYPE exploreCommand( int8_t *pcWriteBuffer, size_t xWriteBufferL
 		writePxMutex(PcPort, (char*) pcWriteBuffer, strlen((char*) pcWriteBuffer), cmd50ms, HAL_MAX_DELAY);
 	}
 	sprintf( ( char * ) pcWriteBuffer, " ");
-	
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -4924,8 +4924,8 @@ static portBASE_TYPE resetCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 	( void ) xWriteBufferLen;
 	configASSERT( pcWriteBuffer );
 
-	NVIC_SystemReset();	
-	
+	NVIC_SystemReset();
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -4935,15 +4935,15 @@ static portBASE_TYPE resetCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 
 static portBASE_TYPE nameCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	BOS_Status result = BOS_OK; 
-	static int8_t *pcParameterString1; 
+	BOS_Status result = BOS_OK;
+	static int8_t *pcParameterString1;
 	static portBASE_TYPE xParameterStringLength1;
-	
+
 	static const int8_t *pcMessageOK = ( int8_t * ) "Module %d is named %s\n\r";
 	static const int8_t *pcMessageKey = ( int8_t * ) "%s is a reserved BOS keyword! Please use a different alias\n\r";
 	static const int8_t *pcMessageAlias = ( int8_t * ) "%s is already used! Please use a different alias\n\r";
 	static const int8_t *pcMessageCmd = ( int8_t * ) "%s is an existing CLI command! Please use a different alias\n\r";
-	
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
@@ -4957,21 +4957,21 @@ static portBASE_TYPE nameCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen,
 	if (xParameterStringLength1 > MaxLengthOfAlias) {
 		pcParameterString1[MaxLengthOfAlias] = '\0';
 	}
-	
+
 	/* Name the module */
 	result = NameModule(myID, (char*) pcParameterString1);
-		
+
 	/* Respond to the update command */
 	if (result == BOS_OK)
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageOK, myID, pcParameterString1);
 	else if (result == BOS_ERR_Keyword)
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageKey, pcParameterString1);
 	else if (result == BOS_ERR_ExistingAlias)
-		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageAlias, pcParameterString1);	
+		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageAlias, pcParameterString1);
 	else if (result == BOS_ERR_ExistingCmd)
-		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageCmd, pcParameterString1);	
-	
-	
+		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageCmd, pcParameterString1);
+
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -4981,11 +4981,11 @@ static portBASE_TYPE nameCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen,
 
 static portBASE_TYPE groupCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	BOS_Status result = BOS_OK; 
-	static int8_t *pcParameterString1, *pcParameterString, count; 
+	BOS_Status result = BOS_OK;
+	static int8_t *pcParameterString1, *pcParameterString, count;
 	static portBASE_TYPE xParameterStringLength1, xParameterStringLength;
 	char module[MaxLengthOfAlias+30] = {0}; int16_t modID = 0, type = 0; char alias[MaxLengthOfAlias+1] = {0};
-	
+
 	static const int8_t *pcMessageWrongModule = ( int8_t * ) "%s is a wrong module ID or alias\n\r";
 	static const int8_t *pcMessageOKnew = ( int8_t * ) "] added to new group %s\n\r";
 	static const int8_t *pcMessageOKexist = ( int8_t * ) "] added to existing group %s\n\r";
@@ -4993,7 +4993,7 @@ static portBASE_TYPE groupCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 	static const int8_t *pcMessageAlias = ( int8_t * ) "%s is already used! Please use a different alias\n\r";
 	static const int8_t *pcMessageCmd = ( int8_t * ) "%s is an existing CLI command! Please use a different alias\n\r";
 	static const int8_t *pcMessageNoModules = ( int8_t * ) "Please enter some module IDs to add to %s\n\r";
-	
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
@@ -5003,18 +5003,18 @@ static portBASE_TYPE groupCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 	/* Obtain the 1st parameter string - Group name */
 	pcParameterString1 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 1, &xParameterStringLength1);
 	strncpy( alias, ( char * ) pcParameterString1, xParameterStringLength1);
-	
+
 	/* Is it new or existing group? */
 	type = 1;
 	for(uint8_t i=0 ; i<MaxNumOfGroups ; i++)
 	{
 		/* This group already exists */
-		if (!strcmp(alias, groupAlias[i]))	
+		if (!strcmp(alias, groupAlias[i]))
 		{
 			type = 0; break;
 		}
-	}	
-	
+	}
+
 	/* Extract modules and add them to group */
 	count = 2;
 	strcpy( ( char * ) pcWriteBuffer, "Modules [");
@@ -5023,29 +5023,29 @@ static portBASE_TYPE groupCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 	{
 		strncpy(module, ( char * ) pcParameterString, xParameterStringLength); module[xParameterStringLength] = '\0';
 		modID = GetID(module);
-		
+
 		if (modID < 0)	break;
-		
+
 		result = AddModuleToGroup(modID, alias);
-		
+
 		if (result != BOS_OK)	break;
-		
+
 		if (count > 2)
-			strcat( ( char * ) pcWriteBuffer, ", "); 
-		
+			strcat( ( char * ) pcWriteBuffer, ", ");
+
 		strcat( ( char * ) pcWriteBuffer, module);
-		
+
 		/* Extract next module */
-		pcParameterString = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, ++count, &xParameterStringLength);	
+		pcParameterString = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, ++count, &xParameterStringLength);
 	}
-		
+
 	/* Respond to the update command */
-	if (modID < 0) 
+	if (modID < 0)
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageWrongModule, module);
 	else if (count == 2)
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageNoModules, alias);
 	else if (result == BOS_OK && type) {
-		sprintf( module, ( char * ) pcMessageOKnew, alias); 
+		sprintf( module, ( char * ) pcMessageOKnew, alias);
 		strcat( ( char * ) pcWriteBuffer, module);
 	} else if (result == BOS_OK && !type) {
 		sprintf( module, ( char * ) pcMessageOKexist, alias);
@@ -5053,11 +5053,11 @@ static portBASE_TYPE groupCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 	} else if (result == BOS_ERR_Keyword)
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageKey, alias);
 	else if (result == BOS_ERR_ExistingAlias)
-		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageAlias, alias);	
+		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageAlias, alias);
 	else if (result == BOS_ERR_ExistingCmd)
-		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageCmd, alias);	
-	
-	
+		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageCmd, alias);
+
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -5076,7 +5076,7 @@ static portBASE_TYPE statusCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLe
 
 	/* Respond to the status command */
 	DisplayModuleStatus(0);
-	
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -5086,8 +5086,8 @@ static portBASE_TYPE statusCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLe
 
 static portBASE_TYPE infoCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	BOS_Status result = BOS_OK; 
-	
+	BOS_Status result = BOS_OK;
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
@@ -5098,7 +5098,7 @@ static portBASE_TYPE infoCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen,
 	/* Read Ports directions when a pre-defined topology file is used */
 	if (N > 1)
 		result = ReadPortsDir();
-	
+
 	/* Respond to the info command */
 	sprintf( ( char * ) pcWriteBuffer, "\n\rNumber of modules: %d\n", N);
 	writePxMutex(PcPort, (char*) pcWriteBuffer, strlen((char*) pcWriteBuffer), cmd50ms, HAL_MAX_DELAY);
@@ -5108,10 +5108,10 @@ static portBASE_TYPE infoCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen,
 	DisplayPortsDir(PcPort);
 	if (result == BOS_ERR_NoResponse) {
 		sprintf( ( char * ) pcWriteBuffer, "Could not read ports direction for some modules! Please try again\n\r");
-		writePxMutex(PcPort, (char*) pcWriteBuffer, strlen((char*) pcWriteBuffer), cmd50ms, HAL_MAX_DELAY);		
+		writePxMutex(PcPort, (char*) pcWriteBuffer, strlen((char*) pcWriteBuffer), cmd50ms, HAL_MAX_DELAY);
 	}
 	sprintf( ( char * ) pcWriteBuffer, " ");
-	
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -5121,24 +5121,24 @@ static portBASE_TYPE infoCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen,
 
 static portBASE_TYPE scastCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	BOS_Status result = BOS_OK; 
-	static int8_t *pcParameterString1, *pcParameterString2, *pcParameterString3, *pcParameterString4; 
-	static int8_t *pcParameterString5, *pcParameterString6, *pcParameterString7; 
-	portBASE_TYPE xParameterStringLength1 = 0, xParameterStringLength2 = 0, xParameterStringLength3 = 0; 
+	BOS_Status result = BOS_OK;
+	static int8_t *pcParameterString1, *pcParameterString2, *pcParameterString3, *pcParameterString4;
+	static int8_t *pcParameterString5, *pcParameterString6, *pcParameterString7;
+	portBASE_TYPE xParameterStringLength1 = 0, xParameterStringLength2 = 0, xParameterStringLength3 = 0;
 	portBASE_TYPE xParameterStringLength4 = 0, xParameterStringLength5 = 0, xParameterStringLength6 = 0;
 	portBASE_TYPE xParameterStringLength7 = 0;
 	uint8_t direction = 0, srcP = 0, dstP = 0, srcM = 0, dstM = 0; uint32_t count = 0, timeout = 0;
 	char par1[MaxLengthOfAlias+1] = {0}, par2[MaxLengthOfAlias+1] = {0}, par3[MaxLengthOfAlias+1] = {0};
-	
+
 	static const int8_t *pcMessage = ( int8_t * ) "Activating a %s single-cast DMA stream from P%d in module %s to P%d in module %s. The stream will deactivate after %d bytes or %d ms\n\r";
-	
-	
+
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
 	( void ) xWriteBufferLen;
 	configASSERT( pcWriteBuffer );
-	
+
 	/* Obtain the 1st parameter string. */
 	pcParameterString1 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 1, &xParameterStringLength1);
 	if (pcParameterString1[0] == 'P' || pcParameterString1[0] == 'p') {
@@ -5149,7 +5149,7 @@ static portBASE_TYPE scastCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 	pcParameterString2 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 2, &xParameterStringLength2);
 	strncpy(par1, ( char * ) pcParameterString2, xParameterStringLength2);
 	srcM = (uint8_t) GetID(par1);
-	
+
 	/* Obtain the 3rd parameter string. */
 	pcParameterString3 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 3, &xParameterStringLength3);
 	if (pcParameterString3[0] == 'p') {
@@ -5160,7 +5160,7 @@ static portBASE_TYPE scastCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 	pcParameterString4 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 4, &xParameterStringLength4);
 	strncpy(par2, ( char * ) pcParameterString4, xParameterStringLength4);
 	dstM = (uint8_t) GetID(par2);
-	
+
 	/* Obtain the 5th parameter string. */
 	pcParameterString5 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 5, &xParameterStringLength5);
 	/* Read the color value. */
@@ -5171,7 +5171,7 @@ static portBASE_TYPE scastCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 	else if (!strncmp((const char *)pcParameterString5, "bidirectional", xParameterStringLength5))
 		direction = BIDIRECTIONAL;
 	strncpy(par3, ( char * ) pcParameterString5, xParameterStringLength5);
-	
+
 	/* Obtain the 6th parameter string. */
 	pcParameterString6 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 6, &xParameterStringLength6);
 	count = ( uint32_t ) atol( ( char * ) pcParameterString6 );
@@ -5179,15 +5179,15 @@ static portBASE_TYPE scastCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 	/* Obtain the 7th parameter string. */
 	pcParameterString7 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 7, &xParameterStringLength7);
 	timeout = ( uint32_t ) atol( ( char * ) pcParameterString7 );
-	
+
 	result = StartScastDMAStream(srcP, srcM, dstP, dstM, direction, count, timeout, false);
-	
+
 	/* Respond to the command */
-	if (result == BOS_OK) 
-	{	
+	if (result == BOS_OK)
+	{
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessage, par3, srcP, par1, dstP, par2, count, timeout);
 	}
-	
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -5197,20 +5197,20 @@ static portBASE_TYPE scastCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen
 
 static portBASE_TYPE addbuttonCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	BOS_Status result = BOS_OK; 
-	static int8_t *pcParameterString1, *pcParameterString2; 
-	portBASE_TYPE xParameterStringLength1 = 0, xParameterStringLength2 = 0; 
+	BOS_Status result = BOS_OK;
+	static int8_t *pcParameterString1, *pcParameterString2;
+	portBASE_TYPE xParameterStringLength1 = 0, xParameterStringLength2 = 0;
 	uint8_t port = 0, type = 0;
-	
+
 	static const int8_t *pcMessage = ( int8_t * ) "A new %s button named B%d was defined at port P%d\n\r";
-	
-	
+
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
 	( void ) xWriteBufferLen;
 	configASSERT( pcWriteBuffer );
-	
+
 	/* Obtain the 1st parameter string. */
 	pcParameterString1 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 1, &xParameterStringLength1);
 	if (!strncmp((const char *)pcParameterString1, "momentary-no", xParameterStringLength1)) {
@@ -5222,22 +5222,22 @@ static portBASE_TYPE addbuttonCommand( int8_t *pcWriteBuffer, size_t xWriteBuffe
 	} else if (!strncmp((const char *)pcParameterString1, "onoff-nc", xParameterStringLength1)) {
 		type = ONOFF_NC;
 	}
-		
+
 	/* Obtain the 2nd parameter string. */
 	pcParameterString2 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 2, &xParameterStringLength2);
 	if (pcParameterString2[0] == 'p') {
 		port = ( uint8_t ) atol( ( char * ) pcParameterString2+1 );
 	}
-	
+
 	result = AddPortButton(type, port);
-	
+
 	/* Respond to the command */
-	if (result == BOS_OK) 
-	{	
+	if (result == BOS_OK)
+	{
 		pcParameterString1[xParameterStringLength1] = 0;		// Get rid of the remaining parameters
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessage, pcParameterString1, port, port);
 	}
-	
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -5247,34 +5247,34 @@ static portBASE_TYPE addbuttonCommand( int8_t *pcWriteBuffer, size_t xWriteBuffe
 
 static portBASE_TYPE removebuttonCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	BOS_Status result = BOS_OK; 
-	static int8_t *pcParameterString1; 
-	portBASE_TYPE xParameterStringLength1 = 0; 
+	BOS_Status result = BOS_OK;
+	static int8_t *pcParameterString1;
+	portBASE_TYPE xParameterStringLength1 = 0;
 	uint8_t port = 0;
-	
+
 	static const int8_t *pcMessage = ( int8_t * ) "Button B%d was removed from port P%d\n\r";
-	
-	
+
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
 	( void ) xWriteBufferLen;
 	configASSERT( pcWriteBuffer );
-	
+
 	/* Obtain the 1st parameter string. */
 	pcParameterString1 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 2, &xParameterStringLength1);
 	if (pcParameterString1[0] == 'p') {
 		port = ( uint8_t ) atol( ( char * ) pcParameterString1+1 );
 	}
-	
+
 	result = RemovePortButton(port);
-	
+
 	/* Respond to the command */
-	if (result == BOS_OK) 
-	{	
+	if (result == BOS_OK)
+	{
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessage, port, port);
 	}
-	
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -5284,34 +5284,34 @@ static portBASE_TYPE removebuttonCommand( int8_t *pcWriteBuffer, size_t xWriteBu
 
 static portBASE_TYPE setCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	BOS_Status result = BOS_OK; 
-	static int8_t *pcParameterString1, *pcParameterString2, *pcParameterString3, *pcParameterString4, *pcParameterString5; 
+	BOS_Status result = BOS_OK;
+	static int8_t *pcParameterString1, *pcParameterString2, *pcParameterString3, *pcParameterString4, *pcParameterString5;
 	portBASE_TYPE xParameterStringLength1 = 0, xParameterStringLength2 = 0, xParameterStringLength3 = 0;
 	portBASE_TYPE xParameterStringLength4 = 0, xParameterStringLength5 = 0;
 	uint16_t temp16 = 0; uint32_t temp2 = 0; uint8_t extraMessage = 0, temp81, temp82, temp83, temp84;
-	
-	static const int8_t *pcMessageOK = ( int8_t * ) "%s was set to %s\n\r";	
-	static const int8_t *pcMessageWrongParam = ( int8_t * ) "Wrong parameter!\n\r";	
-	static const int8_t *pcMessageWrongValue = ( int8_t * ) "Wrong value!\n\r";	
+
+	static const int8_t *pcMessageOK = ( int8_t * ) "%s was set to %s\n\r";
+	static const int8_t *pcMessageWrongParam = ( int8_t * ) "Wrong parameter!\n\r";
+	static const int8_t *pcMessageWrongValue = ( int8_t * ) "Wrong value!\n\r";
 	static const int8_t *pcMessageCLI1 = ( int8_t * ) "\nYou must restart to enable the new baudrate.\n\r";
 	static const int8_t *pcMessageCLI2 = ( int8_t * ) "This affects all ports. If you change this value from default, \
 you must connect to a CLI port on each startup to restore other array ports into default baudrate\n\r";
-	
-	
+
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
 	( void ) xWriteBufferLen;
 	configASSERT( pcWriteBuffer );
-	
+
 	/* Obtain the 1st parameter string: The set parameter */
 	pcParameterString1 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 1, &xParameterStringLength1);
-	if (!strncmp((const char *)pcParameterString1, "bos.", 4)) 
+	if (!strncmp((const char *)pcParameterString1, "bos.", 4))
 	{
 		/* Obtain the 2nd parameter string: the value to set */
 		pcParameterString2 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 2, &xParameterStringLength2);
-	
-		if (!strncmp((const char *)pcParameterString1+4, "response", xParameterStringLength1-4)) 
+
+		if (!strncmp((const char *)pcParameterString1+4, "response", xParameterStringLength1-4))
 		{
 			if (!strncmp((const char *)pcParameterString2, "all", xParameterStringLength2)) {
 				BOS.response = BOS_RESPONSE_ALL;
@@ -5324,8 +5324,8 @@ you must connect to a CLI port on each startup to restore other array ports into
 				EE_WriteVariable(VirtAddVarTab[_EE_ParamsBase], ((uint16_t)BOS.trace<<8) | (uint16_t)BOS.response);
 			} else
 				result = BOS_ERR_WrongValue;
-		} 
-		else if (!strncmp((const char *)pcParameterString1+4, "trace", xParameterStringLength1-4)) 
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "trace", xParameterStringLength1-4))
 		{
 			if (!strncmp((const char *)pcParameterString2, "true", xParameterStringLength2)) {
 				BOS.trace = 1;
@@ -5335,8 +5335,8 @@ you must connect to a CLI port on each startup to restore other array ports into
 				EE_WriteVariable(VirtAddVarTab[_EE_ParamsBase], ((uint16_t)BOS.trace<<8) | (uint16_t)BOS.response);
 			} else
 				result = BOS_ERR_WrongValue;
-		} 
-		else if (!strncmp((const char *)pcParameterString1+4, "clibaudrate", xParameterStringLength1-4)) 
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "clibaudrate", xParameterStringLength1-4))
 		{
 			temp2 = atoi((const char *)pcParameterString2);
 			if (temp2 <= DEF_CLI_BAUDRATE) {
@@ -5345,9 +5345,9 @@ you must connect to a CLI port on each startup to restore other array ports into
 				EE_WriteVariable(VirtAddVarTab[_EE_CLIBaud+1], (uint16_t)(BOS.clibaudrate>>16));
 				extraMessage = 1;
 			} else
-				result = BOS_ERR_WrongValue;			
+				result = BOS_ERR_WrongValue;
 		}
-		else if (!strncmp((const char *)pcParameterString1+4, "debounce", xParameterStringLength1-4)) 
+		else if (!strncmp((const char *)pcParameterString1+4, "debounce", xParameterStringLength1-4))
 		{
 			temp16 = atoi((const char *)pcParameterString2);
 			if (temp16 >= 1 && temp16 <= USHRT_MAX) {
@@ -5355,35 +5355,35 @@ you must connect to a CLI port on each startup to restore other array ports into
 				EE_WriteVariable(VirtAddVarTab[_EE_ParamsDebounce], temp16);
 			} else
 				result = BOS_ERR_WrongValue;
-		} 
-		else if (!strncmp((const char *)pcParameterString1+4, "singleclicktime", xParameterStringLength1-4)) 
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "singleclicktime", xParameterStringLength1-4))
 		{
 			temp16 = atoi((const char *)pcParameterString2);
 			if (temp16 >= 1 && temp16 <= USHRT_MAX) {
 				BOS.buttons.singleClickTime = temp16;
 				EE_WriteVariable(VirtAddVarTab[_EE_ParamsSinClick], temp16);
 			} else
-				result = BOS_ERR_WrongValue;			
-		} 
-		else if (!strncmp((const char *)pcParameterString1+4, "mininterclicktime", xParameterStringLength1-4)) 
+				result = BOS_ERR_WrongValue;
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "mininterclicktime", xParameterStringLength1-4))
 		{
 			temp16 = atoi((const char *)pcParameterString2);
 			if (temp16 >= 1 && temp16 <= UCHAR_MAX) {
 				BOS.buttons.minInterClickTime = temp16;
 				EE_WriteVariable(VirtAddVarTab[_EE_ParamsDblClick], ((uint16_t)BOS.buttons.maxInterClickTime<<8) | (uint16_t)BOS.buttons.minInterClickTime);
 			} else
-				result = BOS_ERR_WrongValue;			
-		} 		
-		else if (!strncmp((const char *)pcParameterString1+4, "maxinterclicktime", xParameterStringLength1-4)) 
+				result = BOS_ERR_WrongValue;
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "maxinterclicktime", xParameterStringLength1-4))
 		{
 			temp16 = atoi((const char *)pcParameterString2);
 			if (temp16 >= 1 && temp16 <= UCHAR_MAX) {
 				BOS.buttons.maxInterClickTime = temp16;
 				EE_WriteVariable(VirtAddVarTab[_EE_ParamsDblClick], ((uint16_t)BOS.buttons.maxInterClickTime<<8) | (uint16_t)BOS.buttons.minInterClickTime);
 			} else
-				result = BOS_ERR_WrongValue;					
-		} 
-		else	
+				result = BOS_ERR_WrongValue;
+		}
+		else
 			result = BOS_ERR_WrongParam;
 	}
 	else if (!strncmp((const char *)pcParameterString1, "time", 4))
@@ -5395,7 +5395,7 @@ you must connect to a CLI port on each startup to restore other array ports into
 		temp81 = atoi((const char *)pcParameterString2);		// Hours
 		temp82 = atoi((const char *)pcParameterString3);		// Minutes
 		temp83 = atoi((const char *)pcParameterString4);		// Seconds
-		
+
 		if (pcParameterString5 != NULL) {
 			if (!strncmp((const char *)pcParameterString5, "am", 2))
 				temp84 = RTC_AM;
@@ -5404,13 +5404,13 @@ you must connect to a CLI port on each startup to restore other array ports into
 			else
 				result = BOS_ERR_WrongValue;
 		}
-		
-		if (result == BOS_OK) 
+
+		if (result == BOS_OK)
 		{
 			if (temp81 > 23 || temp82 > 59 || temp83 > 59)
 				result = BOS_ERR_WrongValue;
 			else {
-				GetTimeDate();				
+				GetTimeDate();
 				result = BOS_CalendarConfig(BOS.date.month, BOS.date.day, BOS.date.year, BOS.date.weekday, temp83, temp82, temp81, temp84, BOS.daylightsaving);
 			}
 		}
@@ -5422,8 +5422,8 @@ you must connect to a CLI port on each startup to restore other array ports into
 		pcParameterString4 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 4, &xParameterStringLength4);
 		pcParameterString5 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 5, &xParameterStringLength5);
 		temp83 = atoi((const char *)pcParameterString4);		// day
-		temp16 = atoi((const char *)pcParameterString5);		// year	
-		
+		temp16 = atoi((const char *)pcParameterString5);		// year
+
 		if (!strncmp((const char *)pcParameterString2, "monday", 6))
 			temp81 = MONDAY;
 		else if (!strncmp((const char *)pcParameterString2, "tuesday", 7))
@@ -5439,8 +5439,8 @@ you must connect to a CLI port on each startup to restore other array ports into
 		else if (!strncmp((const char *)pcParameterString2, "sunday", 6))
 			temp81 = SUNDAY;
 		else
-			result = BOS_ERR_WrongValue;		
-		
+			result = BOS_ERR_WrongValue;
+
 		if (!strncmp((const char *)pcParameterString3, "january", 7) || !strncmp((const char *)pcParameterString3, "1 ", 2))
 			temp82 = JANUARY;
 		else if (!strncmp((const char *)pcParameterString3, "february", 8) || !strncmp((const char *)pcParameterString3, "2 ", 2))
@@ -5466,9 +5466,9 @@ you must connect to a CLI port on each startup to restore other array ports into
 		else if (!strncmp((const char *)pcParameterString3, "december", 8) || !strncmp((const char *)pcParameterString3, "12", 2))
 			temp82 = DECEMBER;
 		else
-			result = BOS_ERR_WrongValue;	
-		
-		if (result == BOS_OK) 
+			result = BOS_ERR_WrongValue;
+
+		if (result == BOS_OK)
 		{
 			if (temp83 < 1 || temp83 > 31 || temp16 < 2000 || temp16 > 2100)
 				result = BOS_ERR_WrongValue;
@@ -5478,11 +5478,11 @@ you must connect to a CLI port on each startup to restore other array ports into
 			}
 		}
 	}
-	else	
+	else
 		result = BOS_ERR_WrongParam;
-		
+
 	/* Respond to the command */
-	if (result == BOS_OK) 
+	if (result == BOS_OK)
 	{
 		pcParameterString1[xParameterStringLength1] = 0;		// Get rid of the remaining parameters
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageOK, pcParameterString1, pcParameterString2);
@@ -5495,7 +5495,7 @@ you must connect to a CLI port on each startup to restore other array ports into
 		strcpy( ( char * ) pcWriteBuffer, ( char * ) pcMessageWrongParam );
 	else if (result == BOS_ERR_WrongValue)
 		strcpy( ( char * ) pcWriteBuffer, ( char * ) pcMessageWrongValue );
-	
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -5505,28 +5505,28 @@ you must connect to a CLI port on each startup to restore other array ports into
 
 static portBASE_TYPE getCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	BOS_Status result = BOS_OK; 
-	static int8_t *pcParameterString1, *pcParameterString2; 
+	BOS_Status result = BOS_OK;
+	static int8_t *pcParameterString1, *pcParameterString2;
 	portBASE_TYPE xParameterStringLength1 = 0, xParameterStringLength2 = 0;
 	uint8_t temp8 = 0, i = 0, j = 0;
-	
-	static const int8_t *pcMessageOK = ( int8_t * ) "%s\n\r";	
-	static const int8_t *pcMessageWrongParam = ( int8_t * ) "Wrong parameter!\n\r";		
-	static const int8_t *pcMessageWrongValue = ( int8_t * ) "%s is set to a wrong value!\n\r";	
-	static const int8_t *pcMessageGroupDoesNotExist = ( int8_t * ) "%s group does not exist!\n\r";	
+
+	static const int8_t *pcMessageOK = ( int8_t * ) "%s\n\r";
+	static const int8_t *pcMessageWrongParam = ( int8_t * ) "Wrong parameter!\n\r";
+	static const int8_t *pcMessageWrongValue = ( int8_t * ) "%s is set to a wrong value!\n\r";
+	static const int8_t *pcMessageGroupDoesNotExist = ( int8_t * ) "%s group does not exist!\n\r";
 	static const int8_t *pcMessageGroupExists = ( int8_t * ) "Group %s members:\n\r";
-	
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
 	( void ) xWriteBufferLen;
 	configASSERT( pcWriteBuffer );
-	
+
 	/* Obtain the 1st parameter string: The set parameter */
 	pcParameterString1 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 1, &xParameterStringLength1);
-	if (!strncmp((const char *)pcParameterString1, "bos.", 4)) 
+	if (!strncmp((const char *)pcParameterString1, "bos.", 4))
 	{
-		if (!strncmp((const char *)pcParameterString1+4, "response", xParameterStringLength1-4)) 
+		if (!strncmp((const char *)pcParameterString1+4, "response", xParameterStringLength1-4))
 		{
 			if (BOS.response == BOS_RESPONSE_ALL)
 				sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageOK, "all");
@@ -5536,8 +5536,8 @@ static portBASE_TYPE getCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, 
 				sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageOK, "none");
 			else
 				result = BOS_ERR_WrongValue;
-		} 
-		else if (!strncmp((const char *)pcParameterString1+4, "trace", xParameterStringLength1-4)) 
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "trace", xParameterStringLength1-4))
 		{
 			if (BOS.trace == 1)
 				sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageOK, "true");
@@ -5545,28 +5545,28 @@ static portBASE_TYPE getCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, 
 				sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageOK, "false");
 			else
 				result = BOS_ERR_WrongValue;
-		} 
-		else if (!strncmp((const char *)pcParameterString1+4, "clibaudrate", xParameterStringLength1-4)) 
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "clibaudrate", xParameterStringLength1-4))
 		{
 			sprintf( ( char * ) pcWriteBuffer, "%d\n\r", BOS.clibaudrate);
-		} 
-		else if (!strncmp((const char *)pcParameterString1+4, "debounce", xParameterStringLength1-4)) 
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "debounce", xParameterStringLength1-4))
 		{
 			sprintf( ( char * ) pcWriteBuffer, "%d\n\r", BOS.buttons.debounce);
-		} 
-		else if (!strncmp((const char *)pcParameterString1+4, "singleclicktime", xParameterStringLength1-4)) 
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "singleclicktime", xParameterStringLength1-4))
 		{
 			sprintf( ( char * ) pcWriteBuffer, "%d\n\r", BOS.buttons.singleClickTime);
-		} 
-		else if (!strncmp((const char *)pcParameterString1+4, "mininterclicktime", xParameterStringLength1-4)) 
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "mininterclicktime", xParameterStringLength1-4))
 		{
 			sprintf( ( char * ) pcWriteBuffer, "%d\n\r", BOS.buttons.minInterClickTime);
-		} 		
-		else if (!strncmp((const char *)pcParameterString1+4, "maxinterclicktime", xParameterStringLength1-4)) 
+		}
+		else if (!strncmp((const char *)pcParameterString1+4, "maxinterclicktime", xParameterStringLength1-4))
 		{
 			sprintf( ( char * ) pcWriteBuffer, "%d\n\r", BOS.buttons.maxInterClickTime);
-		} 
-		else	
+		}
+		else
 			result = BOS_ERR_WrongParam;
 	}
 	else if (!strncmp((const char *)pcParameterString1, "group", 5))
@@ -5576,11 +5576,11 @@ static portBASE_TYPE getCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, 
 		/* Check group exists */
 		for(i=0 ; i<MaxNumOfGroups ; i++)
 		{
-			if (!strcmp( ( char * ) pcParameterString2, groupAlias[i]))	
+			if (!strcmp( ( char * ) pcParameterString2, groupAlias[i]))
 			{
 				temp8 = 1; break;
 			}
-		}	
+		}
 		/* Group does not exist*/
 		if (!temp8)
 		{
@@ -5597,18 +5597,18 @@ static portBASE_TYPE getCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, 
 				{
 					sprintf( ( char * ) pcWriteBuffer, "%s#%d\n\r", ( char * ) pcWriteBuffer, j );
 				}
-			}		
-		}	
+			}
+		}
 	}
-	else	
+	else
 		result = BOS_ERR_WrongParam;
-		
+
 	/* Respond to the command */
 	if (result == BOS_ERR_WrongParam)
 		strcpy( ( char * ) pcWriteBuffer, ( char * ) pcMessageWrongParam );
 	else if (result == BOS_ERR_WrongValue)
 		sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageWrongValue, pcParameterString1);
-	
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -5618,36 +5618,36 @@ static portBASE_TYPE getCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, 
 
 static portBASE_TYPE defaultCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	BOS_Status result = BOS_OK; 
-	static int8_t *pcParameterString1; 
+	BOS_Status result = BOS_OK;
+	static int8_t *pcParameterString1;
 	portBASE_TYPE xParameterStringLength1 = 0;
-	
-	static const int8_t *pcMessageOKParams = ( int8_t * ) "All parameters set to default values\n\r";	
-	static const int8_t *pcMessageOKArray = ( int8_t * ) "Current array topology was removed. Please reboot all modules\n\r";	
-	static const int8_t *pcMessageWrongValue = ( int8_t * ) "Wrong value!\n\r";	
-	
+
+	static const int8_t *pcMessageOKParams = ( int8_t * ) "All parameters set to default values\n\r";
+	static const int8_t *pcMessageOKArray = ( int8_t * ) "Current array topology was removed. Please reboot all modules\n\r";
+	static const int8_t *pcMessageWrongValue = ( int8_t * ) "Wrong value!\n\r";
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
 	( void ) xWriteBufferLen;
 	configASSERT( pcWriteBuffer );
-	
+
 	/* Obtain the 1st parameter string: The set parameter */
 	pcParameterString1 = ( int8_t * ) FreeRTOS_CLIGetParameter (pcCommandString, 1, &xParameterStringLength1);
-	if (!strncmp((const char *)pcParameterString1, "params", xParameterStringLength1)) 
+	if (!strncmp((const char *)pcParameterString1, "params", xParameterStringLength1))
 	{
 		memcpy(&BOS, &BOS_default, sizeof(BOS_default));
 		SaveEEparams();
 		strcpy( ( char * ) pcWriteBuffer, ( char * ) pcMessageOKParams );
 	}
-	else if (!strncmp((const char *)pcParameterString1, "array", xParameterStringLength1)) 
+	else if (!strncmp((const char *)pcParameterString1, "array", xParameterStringLength1))
 	{
 		/* Broadcast the default array Message */
 		SendMessageToModule(BOS_BROADCAST, CODE_def_array, 0);
 		indMode = IND_TOPOLOGY; osDelay(100);
 		/* Clear the topology */
 		ClearEEportsDir();
-		#ifndef _N
+		#ifndef __N__
 		ClearROtopology();
 		#endif
 		osDelay(100);
@@ -5658,10 +5658,10 @@ static portBASE_TYPE defaultCommand( int8_t *pcWriteBuffer, size_t xWriteBufferL
 
 	/* Respond to the command */
 	if (result == BOS_OK)
-		
+
 	if (result == BOS_ERR_WrongValue)
 		strcpy( ( char * ) pcWriteBuffer, ( char * ) pcMessageWrongValue );
-	
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -5671,15 +5671,15 @@ static portBASE_TYPE defaultCommand( int8_t *pcWriteBuffer, size_t xWriteBufferL
 
 static portBASE_TYPE timeCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	static const int8_t *pcMessage24 = ( int8_t * ) "Current time is %02d:%02d:%02d-%03d\n\r";	
-	static const int8_t *pcMessage12 = ( int8_t * ) "Current time is %02d:%02d:%02d-%03d %s\n\r";	
-	
+	static const int8_t *pcMessage24 = ( int8_t * ) "Current time is %02d:%02d:%02d-%03d\n\r";
+	static const int8_t *pcMessage12 = ( int8_t * ) "Current time is %02d:%02d:%02d-%03d %s\n\r";
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
 	( void ) xWriteBufferLen;
 	configASSERT( pcWriteBuffer );
-	
+
 	GetTimeDate();
 	/* Respond to the command */
 	if (BOS.hourformat == 24)
@@ -5691,7 +5691,7 @@ static portBASE_TYPE timeCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen,
 		else if (BOS.time.ampm == RTC_PM)
 			sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessage12, BOS.time.hours, BOS.time.minutes, BOS.time.seconds, BOS.time.msec, "PM" );
 	}
-	
+
 	/* There is no more data to return after this single string, so return
 	pdFALSE. */
 	return pdFALSE;
@@ -5701,14 +5701,14 @@ static portBASE_TYPE timeCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen,
 
 static portBASE_TYPE dateCommand( int8_t *pcWriteBuffer, size_t xWriteBufferLen, const int8_t *pcCommandString )
 {
-	static const int8_t *pcMessageDate = ( int8_t * ) "Current date is %s\n\r";	
-	
+	static const int8_t *pcMessageDate = ( int8_t * ) "Current date is %s\n\r";
+
 	/* Remove compile time warnings about unused parameters, and check the
 	write buffer is not NULL.  NOTE - for simplicity, this example assumes the
 	write buffer length is adequate, so does not check for buffer overflows. */
 	( void ) xWriteBufferLen;
 	configASSERT( pcWriteBuffer );
-	
+
 	GetTimeDate();
 	/* Respond to the command */
 	sprintf( ( char * ) pcWriteBuffer, ( char * ) pcMessageDate, GetDateString() );
