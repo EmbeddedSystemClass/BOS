@@ -24,7 +24,7 @@ TIM_HandleTypeDef htim14;	/* micro-second delay counter */
 uint8_t indMode = IND_OFF;
 
 /* Define module PN strings [available PNs+1][5 chars] */
-const char modulePNstring[18][6] = {"", "H01R0", "P01R0", "H23R0", "H23R1", "H07R3", "H08R6", "H1BR6", "H12R0", "H13R7", "H0FR6", "H1AR2", "H0AR9", "H1DR1", "H1DR5", "H0BR4", "H18R0", "H26R0"};
+const char modulePNstring[19][6] = {"", "H01R0", "P01R0", "H23R0", "H23R1", "H07R3", "H08R6", "H1BR6", "H12R0", "H13R7", "H0FR6", "H1AR2", "H0AR9", "H1DR1", "H1DR5", "H0BR4", "H18R0", "H26R0", "H1BR7"};
 
 /* Define BOS keywords */
 static const char BOSkeywords[NumOfKeywords][4] = {"me", "all", "if", "for"};
@@ -3114,13 +3114,22 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1);
+	
+#if defined(STM32F072xB) || defined(STM32F078xx)
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2;
+  PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK1;
+  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
+  HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit);
+#endif
 
+#if defined(STM32F091xC) || defined(STM32F098xx)
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2|RCC_PERIPHCLK_USART3;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK1;
   PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
   PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
   HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit);
-	
+#endif
+
 	__HAL_RCC_PWR_CLK_ENABLE();
   HAL_PWR_EnableBkUpAccess();
 	PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
@@ -4600,48 +4609,48 @@ BOS_Status RemovePortButton(uint8_t port)
 		MX_USART1_UART_Init();
 #endif
 	} 
+#ifdef _Usart2	
 	else if (huart->Instance == USART2) 
 	{	
-#ifdef _Usart2	
 		MX_USART2_UART_Init();
-#endif
 	} 
+#endif
+#ifdef _Usart3
 	else if (huart->Instance == USART3) 
-	{	
-#ifdef _Usart3	
+	{		
 		MX_USART3_UART_Init();
-#endif
 	} 
+#endif
+#ifdef _Usart4	
 	else if (huart->Instance == USART4) 
 	{	
-#ifdef _Usart4	
 		MX_USART4_UART_Init();
-#endif
 	} 
+#endif
+#ifdef _Usart5	
 	else if (huart->Instance == USART5) 
 	{	
-#ifdef _Usart5	
 		MX_USART5_UART_Init();
-#endif
 	} 
+#endif
+#ifdef _Usart6	
 	else if (huart->Instance == USART6) 
 	{	
-#ifdef _Usart6	
 		MX_USART6_UART_Init();
-#endif
 	} 
+#endif
+#ifdef _Usart7	
 	else if (huart->Instance == USART7) 
 	{	
-#ifdef _Usart7	
 		MX_USART7_UART_Init();
-#endif
 	} 
+#endif
+#ifdef _Usart8	
 	else if (huart->Instance == USART8) 
 	{	
-#ifdef _Usart8	
 		MX_USART8_UART_Init();
-#endif
 	} 
+#endif
 	else
 		result = BOS_ERROR;			
 	
