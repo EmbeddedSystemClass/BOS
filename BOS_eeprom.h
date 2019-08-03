@@ -110,6 +110,14 @@
 
 #define _EE_EmptyVarBase				301
 
+// Temporary - H23Rx Bluetooth module VSP mode
+#define _EE_cell_full_scale     302
+#define _EE_cell_drift_LSB      303
+#define _EE_cell_drift_MSB      304
+#define _EE_cell_output_LSB     305
+#define _EE_cell_output_MSB     306
+#define _EE_zero_drift_LSB      307
+#define _EE_zero_drift_MSB      308
 
 #if MaxNumOfModules > 25						// Update
  #warning "Only data for 25 modules will be stored in EEPROM."
